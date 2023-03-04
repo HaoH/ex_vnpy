@@ -1,7 +1,8 @@
 from dataclasses import dataclass
 from datetime import datetime
+from enum import Enum
 
-from vnpy.trader.constant import Exchange
+from vnpy.trader.constant import Exchange, Market
 from vnpy.trader.object import BaseData
 
 
@@ -13,6 +14,7 @@ class BasicStockData(BaseData):
     symbol: str
     name: str
     exchange: Exchange
+    market: Market
 
     industry_first: str
     industry_second: str
