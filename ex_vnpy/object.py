@@ -1,3 +1,4 @@
+import inspect
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
@@ -41,4 +42,8 @@ class BasicStockData(BaseData):
 
     def __post_init__(self):
         """"""
+        if type(self.exchange) == str:
+            self.exchange = Exchange(self.exchange)
+        if type(self.market) == str:
+            self.market = Market(self.market)
         self.vt_symbol = f"{self.symbol}.{self.exchange.value}"
