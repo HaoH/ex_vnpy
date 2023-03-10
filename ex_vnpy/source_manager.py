@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Optional, Any
 
 import pandas as pd
 from pandas import DataFrame, Series
@@ -18,7 +19,7 @@ class SourceManager(object):
     func_price_map = {'open': 'first', 'high': 'max', 'low': 'min', 'close': 'last',
                       'volume': lambda x: x.sum(min_count=1), 'turnover': lambda x: x.sum(min_count=1)}
 
-    def __init__(self, bars: list[BarData], min_size: int = 100):
+    def __init__(self, bars: list[BarData], centrum: bool = False, min_size: int = 100):
         """Constructor"""
         self.exchange: Exchange = None
         self.interval: Interval = None
@@ -30,6 +31,7 @@ class SourceManager(object):
         self.inited: bool = False
         self.size: int = min_size
         self.today: datetime = bars[-1].datetime if len(bars) > 0 else None
+        self.centrum = centrum
 
         for x in bars:
             x.datetime = x.datetime.isoformat()
@@ -45,9 +47,10 @@ class SourceManager(object):
                 self.update_weekly_df()
 
         self.dc_detector = CentrumDetector()
-        self.dc_detector.init_detector(self.daily_df)
         self.wc_detector = CentrumDetector()
-        self.wc_detector.init_detector(self.weekly_df)
+        if self.centrum:
+            self.dc_detector.init_detector(self.daily_df)
+            self.wc_detector.init_detector(self.weekly_df)
 
     def update_meta(self, setting):
         if not self.inited and self.count >= self.size:
@@ -73,11 +76,14 @@ class SourceManager(object):
         self.data_df.loc[nt, :] = new_dict
         self.update_meta(new_dict)
         self.today = bar.datetime
-        self.dc_detector.new_bar(self.daily_df)
+        if self.centrum:
+            self.dc_detector.new_bar(self.daily_df)
 
         if self.inited:
+            week_bar_cnt = len(self.weekly_df) if self.weekly_df is not None else 0
             self.update_weekly_df()
-            self.wc_detector.new_bar(self.weekly_df)
+            if self.centrum and self.weekly_df is not None and week_bar_cnt < len(self.weekly_df):   # 只有在week bar完成，才进行pivot探测
+                self.wc_detector.new_bar(self.weekly_df.iloc[:-1])
 
     def resample_to_week_data(self, df):
         w_df = df.resample('W').agg(self.func_price_map).dropna()
@@ -212,21 +218,33 @@ class SourceManager(object):
         return self.today
 
     @property
-    def last_bottom_daily(self) -> Series:
+    def last_bottom_daily(self) -> Optional[Any]:
+        if not self.centrum or self.weekly_df is None:
+            return None
+
         index = self.dc_detector.last_bottom_date
         return self.daily_df.loc[index]
 
     @property
-    def last_bottom_weekly(self) -> Series:
+    def last_bottom_weekly(self) -> Optional[Any]:
+        if not self.centrum or self.weekly_df is None:
+            return None
+
         index = self.wc_detector.last_bottom_date
         return self.weekly_df.loc[index]
 
     @property
-    def last_top_daily(self) -> Series:
+    def last_top_daily(self) -> Optional[Any]:
+        if not self.centrum or self.weekly_df is None:
+            return None
+
         index = self.dc_detector.last_top_date
         return self.daily_df.loc[index]
 
     @property
-    def last_top_weekly(self) -> Series:
+    def last_top_weekly(self) -> Optional[Any]:
+        if not self.centrum or self.weekly_df is None:
+            return None
+
         index = self.wc_detector.last_top_date
         return self.weekly_df.loc[index]

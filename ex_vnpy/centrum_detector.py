@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Any
 from pandas import DataFrame, Series
 from vnpy.trader.constant import Interval
@@ -22,9 +23,10 @@ class CentrumDetector(object):
         self.name = 'Centrum'
         self.valid_bars: int = valid_bars  # 分型有效间距，笔
 
-        self.last_pivot_index: Any = None  # 上一个确定的pivot的barindex
-        self.last_candidate_pivot_index: Any = None  # 上一个备选的pivot的barindex
-        self.last_backup_pivot_index: Any = None  # 上一个确定的pivot的备选的pivot的barindex
+        self.last_pivot_index: Any = None  # 上一个确定的pivot的index(日期)
+        self.last_candidate_pivot_index: Any = None  # 上一个备选的pivot的index(日期)
+        self.last_backup_pivot_index: Any = None  # 上一个确定的pivot的备选的pivot的index(日期)
+        # self.last_bar_index: Any = None   # 上一个探测的bar的index(日期)
 
         self.last_candidate_pivot_bars: int = 0  # 上一个pivot以来，有多少没有包含关系的bar
         self.last_backup_pivot_bars: int = 0  # 上一个确定的pivot的备选的pivot以来，有多少没有包含关系的bar
@@ -49,9 +51,19 @@ class CentrumDetector(object):
         self.pivot_s: Series = None
 
     def init_detector(self, source_df: DataFrame) -> bool:
+        if len(source_df) < 2:
+            print("Init detector Error! source_df is too short, less than 2")
+            return False
+
         self.pivot_s = Series(0, index=source_df.index)
-        for i in range(len(source_df)):
+        self.last_bar_high = source_df.high.iloc[0]
+        self.last_bar_low = source_df.low.iloc[0]
+        # self.last_bar_index = source_df.index.iloc[0]
+
+        for i in range(1, len(source_df)):      # 从第二个bar开始，尤其是处理周线数据时，做好初始化工作
             self.detect_next_pivot(source_df.iloc[:i+1])
+
+        return True
         # ph_s = Series(True, index=source_df.index)
         # pl_s = Series(True, index=source_df.index)
         #
