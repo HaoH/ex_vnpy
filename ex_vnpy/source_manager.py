@@ -1,8 +1,10 @@
 from datetime import datetime
 
 import pandas as pd
-from pandas import Series
+from pandas import DataFrame, Series
 
+from ex_vnpy.centrum_detector import CentrumDetector
+from vnpy.trader.constant import Interval, Exchange
 from vnpy.trader.object import BarData
 from pandas.tseries.frequencies import to_offset
 
@@ -18,16 +20,16 @@ class SourceManager(object):
 
     def __init__(self, bars: list[BarData], min_size: int = 100):
         """Constructor"""
-        self.exchange = None
-        self.interval = None
-        self.symbol = None
-        self.gateway_name = None
+        self.exchange: Exchange = None
+        self.interval: Interval = None
+        self.symbol: str = None
+        self.gateway_name: str = None
 
-        self.daily_df = None
-        self.weekly_df = None
+        self.daily_df: DataFrame = None
+        self.weekly_df: DataFrame = None
         self.inited: bool = False
-        self.size = min_size
-        self.today = bars[-1].datetime if len(bars) > 0 else None
+        self.size: int = min_size
+        self.today: datetime = bars[-1].datetime if len(bars) > 0 else None
 
         for x in bars:
             x.datetime = x.datetime.isoformat()
@@ -41,6 +43,11 @@ class SourceManager(object):
             self.update_meta(bars[0].__dict__)
             if self.inited:
                 self.update_weekly_df()
+
+        self.dc_detector = CentrumDetector()
+        self.dc_detector.init_detector(self.daily_df)
+        self.wc_detector = CentrumDetector()
+        self.wc_detector.init_detector(self.weekly_df)
 
     def update_meta(self, setting):
         if not self.inited and self.count >= self.size:
@@ -66,9 +73,11 @@ class SourceManager(object):
         self.data_df.loc[nt, :] = new_dict
         self.update_meta(new_dict)
         self.today = bar.datetime
+        self.dc_detector.new_bar(self.daily_df)
 
         if self.inited:
             self.update_weekly_df()
+            self.wc_detector.new_bar(self.weekly_df)
 
     def resample_to_week_data(self, df):
         w_df = df.resample('W').agg(self.func_price_map).dropna()
@@ -108,6 +117,9 @@ class SourceManager(object):
             n = len(self.weekly_df)
 
         return self.weekly_df['low'][-1 * n:].min()
+
+    def get_dataframe(self, interval: Interval):
+        return self.weekly_df if interval == Interval.WEEKLY else self.data_df
 
     @property
     def count(self) -> int:
@@ -198,3 +210,23 @@ class SourceManager(object):
     @property
     def last_date(self) -> datetime:
         return self.today
+
+    @property
+    def last_bottom_daily(self) -> Series:
+        index = self.dc_detector.last_bottom_date
+        return self.daily_df.loc[index]
+
+    @property
+    def last_bottom_weekly(self) -> Series:
+        index = self.wc_detector.last_bottom_date
+        return self.weekly_df.loc[index]
+
+    @property
+    def last_top_daily(self) -> Series:
+        index = self.dc_detector.last_top_date
+        return self.daily_df.loc[index]
+
+    @property
+    def last_top_weekly(self) -> Series:
+        index = self.wc_detector.last_top_date
+        return self.weekly_df.loc[index]
