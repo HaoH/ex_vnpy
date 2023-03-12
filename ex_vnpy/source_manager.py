@@ -88,6 +88,7 @@ class SourceManager(object):
     def resample_to_week_data(self, df):
         w_df = df.resample('W').agg(self.func_price_map).dropna()
         w_df.index = w_df.index + to_offset("-2D")
+        w_df['datetime'] = w_df.index
         return w_df
 
     def update_weekly_df(self):
@@ -218,33 +219,46 @@ class SourceManager(object):
         return self.today
 
     @property
-    def last_bottom_daily(self) -> Optional[Any]:
-        if not self.centrum or self.weekly_df is None:
-            return None
-
-        index = self.dc_detector.last_bottom_date
-        return self.daily_df.loc[index]
+    def last_bottom_low_d(self) -> float:
+        return self.last_pivot_price(Interval.DAILY, 'bottom', 'low')
 
     @property
-    def last_bottom_weekly(self) -> Optional[Any]:
-        if not self.centrum or self.weekly_df is None:
-            return None
-
-        index = self.wc_detector.last_bottom_date
-        return self.weekly_df.loc[index]
+    def last_bottom_low_w(self) -> float:
+        return self.last_pivot_price(Interval.WEEKLY, 'bottom', 'low')
 
     @property
-    def last_top_daily(self) -> Optional[Any]:
-        if not self.centrum or self.weekly_df is None:
-            return None
-
-        index = self.dc_detector.last_top_date
-        return self.daily_df.loc[index]
+    def last_top_high_d(self) -> float:
+        return self.last_pivot_price(Interval.DAILY, 'top', 'high')
 
     @property
-    def last_top_weekly(self) -> Optional[Any]:
-        if not self.centrum or self.weekly_df is None:
+    def last_top_high_w(self) -> float:
+        return self.last_pivot_price(Interval.WEEKLY, 'top', 'high')
+
+    @property
+    def last_top_date_w(self) -> datetime:
+        return self.last_pivot_date(Interval.WEEKLY, "top")
+
+    @property
+    def last_bottom_date_w(self) -> datetime:
+        return self.last_pivot_date(Interval.WEEKLY, "bottom")
+
+    @property
+    def last_top_date_d(self) -> datetime:
+        return self.last_pivot_date(Interval.DAILY, "top")
+
+    @property
+    def last_bottom_date_d(self) -> datetime:
+        return self.last_pivot_date(Interval.DAILY, "bottom")
+
+    def last_pivot_date(self, interval: Interval, pivot_type: str) -> datetime:
+        if not self.centrum or (interval == Interval.DAILY and self.daily_df is None) or \
+                (interval == Interval.WEEKLY and self.weekly_df is None):
             return None
 
-        index = self.wc_detector.last_top_date
-        return self.weekly_df.loc[index]
+        source_detector = self.dc_detector if interval == Interval.DAILY else self.wc_detector
+        return source_detector.last_top_date if pivot_type == "top" else source_detector.last_bottom_date
+
+    def last_pivot_price(self, interval: Interval, pivot_type: str, price_type: str = 'low') -> float:
+        index = self.last_pivot_date(interval, pivot_type)
+        source_detector = self.dc_detector if interval == Interval.DAILY else self.wc_detector
+        return source_detector.pivot_df.loc[index, price_type] if index is not None else None

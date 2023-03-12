@@ -1,5 +1,7 @@
 from datetime import datetime
 from typing import Any
+
+import numpy as np
 from pandas import DataFrame, Series
 from vnpy.trader.constant import Interval
 
@@ -48,14 +50,16 @@ class CentrumDetector(object):
         self.last_before_bar_high: float = 0.0  # 上上个有效的bar的high
         self.last_before_bar_low: float = 0.0  # 上上个有效的bar的low
 
-        self.pivot_s: Series = None
+        # self.pivot_s: Series = None
+        self.pivot_df: DataFrame = None     # pivot,high,low, 存储顶底分型的high/low, pivot=1 & -1表示确定的顶底分型， 2 & -2 表示candidate pivot
 
     def init_detector(self, source_df: DataFrame) -> bool:
         if len(source_df) < 2:
             print("Init detector Error! source_df is too short, less than 2")
             return False
 
-        self.pivot_s = Series(0, index=source_df.index)
+        # self.pivot_s = Series(0, index=source_df.index)
+        self.pivot_df = DataFrame(columns=['pivot', 'high', 'low'], index=source_df.index)
         self.last_bar_high = source_df.high.iloc[0]
         self.last_bar_low = source_df.low.iloc[0]
         # self.last_bar_index = source_df.index.iloc[0]
@@ -87,45 +91,52 @@ class CentrumDetector(object):
         # for i in range(len(passed_df) + 1, len(source_df) + 1):
         #     self.detect_next_pivot(source_df.iloc[:i])
 
-    def merge_pivot(self, source_df):
-        pivots_index = source_df[self.pivot_s != 0].index
-        if len(pivots_index) <= 0:
-            return
-
-        last_bars = 0
-        last_pivot_date = pivots_index[0]
-        p_last_pivot_type = self.pivot_s.loc[last_pivot_date]
-        new_pivot = Series(0, index=source_df.index)
-        new_pivot.loc[last_pivot_date] = p_last_pivot_type
-        for index, row in source_df.iterrows():
-            if index <= last_pivot_date:
-                continue
-
-            if self.pivot_s.loc[index] + p_last_pivot_type == 0:
-                if last_bars >= self.valid_bars:
-                    last_pivot_date = index
-                    new_pivot.loc[last_pivot_date] = self.pivot_s.loc[index]
-                    p_last_pivot_type = self.pivot_s.loc[index]
-                    last_bars = 0
-            elif self.pivot_s.loc[index] == p_last_pivot_type == 1:
-                if row.high >= source_df.high.loc[last_pivot_date]:
-                    new_pivot.loc[last_pivot_date] = 0
-                    new_pivot.loc[index] = 1
-                    last_pivot_date = index
-                    last_bars = 0
-                else:
-                    last_bars += 1
-            elif self.pivot_s.loc[index] == p_last_pivot_type == -1:
-                if row.low <= source_df.low.loc[last_pivot_date]:
-                    new_pivot.loc[last_pivot_date] = 0
-                    new_pivot.loc[index] = -1
-                    last_pivot_date = index
-                    last_bars = 0
-                else:
-                    last_bars += 1
-            else:
-                last_bars += 1
-        return new_pivot
+    # def merge_pivot(self, source_df):
+    #     # pivots_index = source_df[self.pivot_s != 0].index
+    #     pivots_index = source_df[self.pivot_df.pivot != 0].index
+    #     if len(pivots_index) <= 0:
+    #         return
+    #
+    #     last_bars = 0
+    #     last_pivot_date = pivots_index[0]
+    #     # p_last_pivot_type = self.pivot_s.loc[last_pivot_date]
+    #     p_last_pivot_type = self.pivot_df["pivot"].loc[last_pivot_date]
+    #     new_pivot = Series(0, index=source_df.index)
+    #     new_pivot.loc[last_pivot_date] = p_last_pivot_type
+    #     for index, row in source_df.iterrows():
+    #         if index <= last_pivot_date:
+    #             continue
+    #
+    #         # if self.pivot_s.loc[index] + p_last_pivot_type == 0:
+    #         if self.pivot_df["pivot"].loc[index] + p_last_pivot_type == 0:
+    #             if last_bars >= self.valid_bars:
+    #                 last_pivot_date = index
+    #                 # new_pivot.loc[last_pivot_date] = self.pivot_s.loc[index]
+    #                 # p_last_pivot_type = self.pivot_s.loc[index]
+    #                 new_pivot.loc[last_pivot_date] = self.pivot_df["pivot"].loc[index]
+    #                 p_last_pivot_type = self.pivot_df["pivot"].loc[index]
+    #                 last_bars = 0
+    #         # elif self.pivot_s.loc[index] == p_last_pivot_type == 1:
+    #         elif self.pivot_df["pivot"].loc[index] == p_last_pivot_type == 1:
+    #             if row.high >= source_df.high.loc[last_pivot_date]:
+    #                 new_pivot.loc[last_pivot_date] = 0
+    #                 new_pivot.loc[index] = 1
+    #                 last_pivot_date = index
+    #                 last_bars = 0
+    #             else:
+    #                 last_bars += 1
+    #         # elif self.pivot_s.loc[index] == p_last_pivot_type == -1:
+    #         elif self.pivot_df["pivot"].loc[index] == p_last_pivot_type == -1:
+    #             if row.low <= source_df.low.loc[last_pivot_date]:
+    #                 new_pivot.loc[last_pivot_date] = 0
+    #                 new_pivot.loc[index] = -1
+    #                 last_pivot_date = index
+    #                 last_bars = 0
+    #             else:
+    #                 last_bars += 1
+    #         else:
+    #             last_bars += 1
+    #     return new_pivot
 
     @staticmethod
     def find_pivot(source_s, pivot_size, ps, is_high):
@@ -145,8 +156,10 @@ class CentrumDetector(object):
         return ps
 
     def new_bar(self, source_df: DataFrame):
-        for x in range(len(self.pivot_s), len(source_df)):
-            self.pivot_s.loc[source_df.index[x]] = 0
+        # for x in range(len(self.pivot_s), len(source_df)):
+        for x in range(len(self.pivot_df), len(source_df)):
+            # self.pivot_s.loc[source_df.index[x]] = 0
+            self.pivot_df.loc[source_df.index[x]] = Series(data=[0, None, None], index=['pivot', 'high', 'low'])
         self.detect_next_pivot(source_df)
 
     def detect_next_pivot(self, source_df: DataFrame):
@@ -191,23 +204,31 @@ class CentrumDetector(object):
                 # 初始化
                 if self.last_candidate_pivot_index is None:
                     self.update_candidate_pivot(yesterday_index, last_high, last_low, new_candidate_pivot_type)
+                    self.pivot_df.loc[self.last_candidate_pivot_index] = Series(data=[self.last_candidate_pivot_type * 2, self.last_candidate_pivot_high, self.last_candidate_pivot_low], index=['pivot', 'high', 'low'])
 
                 # 连续相同的相同分型，选择顶分型的高位、底分型的低位
                 if self.last_candidate_pivot_type == new_candidate_pivot_type:
                     if (new_candidate_pivot_type == 1 and last_high > self.last_candidate_pivot_high) or (
                             new_candidate_pivot_type == -1 and last_low < self.last_candidate_pivot_low):
                         self.update_candidate_pivot(yesterday_index, last_high, last_low, new_candidate_pivot_type)
+                        self.pivot_df.loc[self.last_candidate_pivot_index] = Series(data=[self.last_candidate_pivot_type * 2, self.last_candidate_pivot_high, self.last_candidate_pivot_low], index=['pivot', 'high', 'low'])
+
                         if self.last_backup_pivot_index is not None and self.last_backup_pivot_bars >= self.valid_bars:
                             # if self.pLastBackupPivotType == self.pLastPivotType
-                            self.pivot_s.loc[self.last_pivot_index] = 0
+                            # self.pivot_df.loc[self.last_pivot_index] = Series(data=[0, None, None], index=['pivot', 'high', 'low'])
+                            self.pivot_df.loc[self.last_pivot_index, 'pivot'] = self.last_pivot_type * 2
                             self.reset_last_pivot_using_backup()
-                            self.pivot_s.loc[self.last_pivot_index] = self.last_backup_pivot_type
+                            self.pivot_df.loc[self.last_pivot_index] = Series(data=[self.last_backup_pivot_type, self.last_backup_pivot_high, self.last_backup_pivot_low], index=['pivot', 'high', 'low'])
 
                 # 连续不同的两个分型，需要看是否符合bar的数量要求
                 elif self.last_candidate_pivot_type + new_candidate_pivot_type == 0 and self.last_candidate_pivot_bars >= self.valid_bars:
-                    self.pivot_s.loc[self.last_candidate_pivot_index] = self.last_candidate_pivot_type       # 更新新的CandidatePivot作为LastPivot
+                    # self.pivot_s.loc[self.last_candidate_pivot_index] = self.last_candidate_pivot_type
+                    # 更新新的CandidatePivot作为LastPivot
                     self.update_last_pivot_using_candidate()
+                    self.pivot_df.loc[self.last_pivot_index] = Series(data=[self.last_pivot_type, self.last_pivot_high, self.last_pivot_low], index=['pivot', 'high', 'low'])
+
                     self.update_candidate_pivot(yesterday_index, last_high, last_low, new_candidate_pivot_type)
+                    self.pivot_df.loc[self.last_candidate_pivot_index] = Series(data=[self.last_candidate_pivot_type * 2, self.last_candidate_pivot_high, self.last_candidate_pivot_low], index=['pivot', 'high', 'low'])
                     # self.pLastCandidateLine = line(na)
                     # set_last_candidate_line(line(na))
 
@@ -264,27 +285,12 @@ class CentrumDetector(object):
         self.last_backup_pivot_index = None
         self.last_backup_pivot_bars = 1
 
-    def on_detect_finish(self):
-        if self.last_candidate_pivot_index is not None:
-            self.pivot_s.loc[self.last_candidate_pivot_index] = self.last_candidate_pivot_type
-        self.pivot_s.fillna(0, inplace=True)
-
     @property
     def last_bottom_date(self):
-        if self.last_candidate_pivot_index is not None and self.last_candidate_pivot_type == -1:
-            return self.last_candidate_pivot_index
-
-        bottoms = self.pivot_s[self.pivot_s == -1]
-        if len(bottoms) > 0:
-            return bottoms.index[-1]
-        return None
+        bottoms = self.pivot_df[self.pivot_df["pivot"].isin([-1, -2])]
+        return bottoms.index[-1] if len(bottoms) > 0 else None
 
     @property
     def last_top_date(self):
-        if self.last_candidate_pivot_index is not None and self.last_candidate_pivot_type == 1:
-            return self.last_candidate_pivot_index
-
-        ups = self.pivot_s[self.pivot_s == 1]
-        if len(ups) > 0:
-            return ups.index[-1]
-        return None
+        ups = self.pivot_df[self.pivot_df["pivot"].isin([1, 2])]
+        return ups.index[-1] if len(ups) > 0 else None

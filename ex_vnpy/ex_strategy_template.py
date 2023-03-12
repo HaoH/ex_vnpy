@@ -15,6 +15,7 @@ class ExStrategyTemplate(CtaTemplate):
     sm: SourceManager = None
     om: OrderManager = None
     position: Position = None
+    price_tick: float = 0.01
 
     def __init__(
         self,
@@ -28,7 +29,7 @@ class ExStrategyTemplate(CtaTemplate):
         self.symbol_name = ""
         self.sm = None
         self.om = None
-        self.position = Position()
+        self.position = Position(price_tick=self.price_tick)
 
     def set_source_manager(self, source: SourceManager):
         self.sm = source
