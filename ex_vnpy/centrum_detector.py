@@ -55,7 +55,7 @@ class CentrumDetector(object):
 
     def init_detector(self, source_df: DataFrame) -> bool:
         if len(source_df) < 2:
-            print("Init detector Error! source_df is too short, less than 2")
+            print("[Centrum][Error]Init detector Error! source_df is too short, less than 2")
             return False
 
         # self.pivot_s = Series(0, index=source_df.index)

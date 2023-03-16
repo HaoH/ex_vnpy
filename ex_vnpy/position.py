@@ -74,7 +74,7 @@ class Position:
             if (self.stop_loss_price - low) / (self.last_price * self.stop_loss_rate) <= 0.5:
                 price_before_adjust = self.stop_loss_price
                 self.stop_loss_price = low - self.price_tick
-                print("[SL_Price_Adjust] date: {}, from {:.2f} to {:.2f}".format(sm.last_date.strftime("%Y-%m-%d"), price_before_adjust, self.stop_loss_price))
+                print("[POS][SL_Price_Adjust] date: {}, from {:.2f} to {:.2f}".format(sm.last_date.strftime("%Y-%m-%d"), price_before_adjust, self.stop_loss_price))
 
         else:
 
@@ -103,7 +103,7 @@ class Position:
 
             # 更新止损价
             if stop_loss_price > self.stop_loss_price:
-                print("[SL_Price_Update] date: {}, from {:.2f} to {:.2f}".format(sm.last_date.strftime("%Y-%m-%d"), self.stop_loss_price, stop_loss_price))
+                print("[POS][SL_Price_Update] date: {}, from {:.2f} to {:.2f}".format(sm.last_date.strftime("%Y-%m-%d"), self.stop_loss_price, stop_loss_price))
                 self.stop_loss_price = stop_loss_price
 
         return self.stop_loss_price
