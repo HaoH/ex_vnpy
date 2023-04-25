@@ -30,6 +30,7 @@ class ExStrategyTemplate(CtaTemplate):
         self.sm = None
         self.om = None
         self.position = Position(price_tick=self.price_tick)
+        self.today = None
 
     def set_source_manager(self, source: SourceManager):
         self.sm = source
@@ -48,20 +49,25 @@ class ExStrategyTemplate(CtaTemplate):
                 signals.append(detector.signal_string())
         return signals
 
+    def do_scan_incremental(self):
+        signals = []
+        for detector in self.signalDetectors:
+            if detector.is_entry_signal_incremental(self.sm):
+                signals.append(detector.signal_string())
+        return signals
+
     def scan_till_today(self) -> list:
         if self.sm.daily_df is not None and self.sm.weekly_df is not None:
             return self.do_scan(self.sm.daily_df, self.sm.weekly_df)
         return []
 
-    def init_strategy(self, daily_df, weekly_df):
+    def init_strategy(self):
         """
-        回测的时候，初始化策略
-        :param daily_df:
-        :param weekly_df:
+        回测的时候，初始化策略，对每一个指标进行首次计算
         :return:
         """
         for detector in self.signalDetectors:
-            detector.init_detector(daily_df, weekly_df)
+            detector.init_detector(self.sm)
 
     @virtual
     def to_string(self) -> str:
