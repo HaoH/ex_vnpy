@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional, Any
 
 import pandas as pd
@@ -44,7 +44,7 @@ class SourceManager(object):
         if len(bars) > 0:
             self.update_meta(bars[0].__dict__)
             if self.inited:
-                self.update_weekly_df()
+                self.update_weekly_df(initialize=True)
 
         self.dc_detector = CentrumDetector()
         self.wc_detector = CentrumDetector()
@@ -91,19 +91,35 @@ class SourceManager(object):
         w_df['datetime'] = w_df.index
         return w_df
 
-    def update_weekly_df(self):
+    def update_weekly_df(self, initialize = False):
         if self.daily_df is None:
             return
 
-        if self.weekly_df is None:
+        if initialize or self.weekly_df is None:
             self.weekly_df = self.resample_to_week_data(self.daily_df)
         else:
-            recent_df = self.resample_to_week_data(self.daily_df[-10:])
-            last_week_df = self.weekly_df.tail(1)
-            new_data_index = list(recent_df.index).index(last_week_df.index)
-            if 0 <= new_data_index < len(recent_df):
-                self.weekly_df.drop(last_week_df.index, inplace=True)
-                self.weekly_df = pd.concat([self.weekly_df, recent_df[new_data_index:]])
+            last_week_dt = self.weekly_df.index[-1]
+            last_bar = self.daily_df.iloc[-1]
+            _, last_week, _ = (last_week_dt - timedelta(days=last_week_dt.weekday())).isocalendar()
+            _, new_week, _ = (last_bar.name - timedelta(days=last_bar.name.weekday())).isocalendar()
+            if last_week == new_week:
+                last_week_s = self.weekly_df.iloc[-1].copy()
+                last_week_s["high"] = max(last_week_s["high"], last_bar["high"])
+                last_week_s["low"] = min(last_week_s["low"], last_bar["low"])
+                last_week_s["close"] = last_bar["close"]
+                last_week_s["volume"] += last_bar["volume"]
+                last_week_s["turnover"] += last_bar["turnover"]
+                self.weekly_df.loc[last_week_s.name] = last_week_s
+            else:
+                new_index = last_bar.name - timedelta(days=last_bar.name.weekday()) + timedelta(days=4)
+                self.weekly_df.loc[new_index] = last_bar
+
+            # recent_df = self.resample_to_week_data(self.daily_df[-10:])
+            # last_week_df = self.weekly_df.tail(1)
+            # new_data_index = list(recent_df.index).index(last_week_df.index)
+            # if 0 <= new_data_index < len(recent_df):
+            #     self.weekly_df.drop(last_week_df.index, inplace=True)
+            #     self.weekly_df = pd.concat([self.weekly_df, recent_df[new_data_index:]])
 
     def recent_week_high(self, recent_weeks: int = 7) -> float:
         if self.weekly_df is None:
@@ -262,3 +278,6 @@ class SourceManager(object):
         index = self.last_pivot_date(interval, pivot_type)
         source_detector = self.dc_detector if interval == Interval.DAILY else self.wc_detector
         return source_detector.pivot_df.loc[index, price_type] if index is not None else None
+
+    def centrum_detector(self, interval: Interval) -> CentrumDetector:
+        return self.dc_detector if interval == Interval.DAILY else self.wc_detector
