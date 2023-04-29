@@ -42,24 +42,16 @@ class ExStrategyTemplate(CtaTemplate):
     def add_signal_detector(self, detector: SignalDetector):
         self.signalDetectors.append(detector)
 
-    def do_scan(self, daily_df, weekly_df) -> list:
+    def do_scan(self) -> list:
+        """
+        根据当前的source manager的数据状态、策略配置，进行信号扫描
+        :return:
+        """
         signals = []
         for detector in self.signalDetectors:
-            if detector.is_entry_signal(daily_df, weekly_df):
+            if detector.is_entry_signal(self.sm):
                 signals.append(detector.signal_string())
         return signals
-
-    def do_scan_incremental(self):
-        signals = []
-        for detector in self.signalDetectors:
-            if detector.is_entry_signal_incremental(self.sm):
-                signals.append(detector.signal_string())
-        return signals
-
-    def scan_till_today(self) -> list:
-        if self.sm.daily_df is not None and self.sm.weekly_df is not None:
-            return self.do_scan(self.sm.daily_df, self.sm.weekly_df)
-        return []
 
     def init_strategy(self):
         """
