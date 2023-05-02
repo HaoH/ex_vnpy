@@ -1,6 +1,10 @@
+import logging
+
 from ex_vnpy.source_manager import SourceManager
 from vnpy.trader.object import TradeData
 from vnpy.trader.constant import Direction, Offset
+
+logger = logging.getLogger("Position")
 
 
 class Position:
@@ -65,7 +69,7 @@ class Position:
             return
 
         bar = sm.latest_week_bar
-        recent_low = sm.recent_week_low(3)
+        recent_low = sm.recent_week_low(11)
         last_pivot_low = sm.last_bottom_low_w  # 当上一周刚出现最低的pivot的时候，有可能还没有识别出底分型
         low = min(recent_low, last_pivot_low)
 
@@ -74,7 +78,7 @@ class Position:
             if (self.stop_loss_price - low) / (self.last_price * self.stop_loss_rate) <= 0.5:
                 price_before_adjust = self.stop_loss_price
                 self.stop_loss_price = low - self.price_tick
-                print("[POS][SL_Price_Adjust] date: {}, from {:.2f} to {:.2f}".format(sm.last_date.strftime("%Y-%m-%d"), price_before_adjust, self.stop_loss_price))
+                logger.info("[POS][SL_Price_Adjust] date: {}, from {:.2f} to {:.2f}".format(sm.last_date.strftime("%Y-%m-%d"), price_before_adjust, self.stop_loss_price))
 
         else:
 
@@ -103,7 +107,7 @@ class Position:
 
             # 更新止损价
             if stop_loss_price > self.stop_loss_price:
-                print("[POS][SL_Price_Update] date: {}, from {:.2f} to {:.2f}".format(sm.last_date.strftime("%Y-%m-%d"), self.stop_loss_price, stop_loss_price))
+                logger.info("[POS][SL_Price_Update] date: {}, from {:.2f} to {:.2f}".format(sm.last_date.strftime("%Y-%m-%d"), self.stop_loss_price, stop_loss_price))
                 self.stop_loss_price = stop_loss_price
 
         return self.stop_loss_price

@@ -1,9 +1,12 @@
+import logging
 from datetime import datetime, timedelta
 from typing import Any, Dict
 
 import numpy as np
 from pandas import DataFrame, Series
 from vnpy.trader.constant import Interval
+
+logger = logging.getLogger("CentrumDetector")
 
 
 class CentrumDetector(object):
@@ -58,7 +61,7 @@ class CentrumDetector(object):
 
     def init_detector(self, source_df: DataFrame) -> bool:
         if len(source_df) < 2:
-            print("[Centrum][Error]Init detector Error! source_df is too short, less than 2")
+            logger.error("[Centrum][Error]Init detector Error! source_df is too short, less than 2")
             return False
 
         self.source_df = source_df
