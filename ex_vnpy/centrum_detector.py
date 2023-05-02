@@ -1,5 +1,5 @@
-from datetime import datetime
-from typing import Any
+from datetime import datetime, timedelta
+from typing import Any, Dict
 
 import numpy as np
 from pandas import DataFrame, Series
@@ -20,10 +20,11 @@ class CentrumDetector(object):
 
     """
 
-    def __init__(self, valid_bars: int = 5, setting=None):
+    def __init__(self, valid_bars: int = 5, enableContain = True, setting=None):
         super().__init__()
         self.name = 'Centrum'
         self.valid_bars: int = valid_bars  # 分型有效间距，笔
+        self.enableContain: bool = enableContain    # contain处理是否有效
 
         self.last_pivot_index: Any = None  # 上一个确定的pivot的index(日期)
         self.last_candidate_pivot_index: Any = None  # 上一个备选的pivot的index(日期)
@@ -50,15 +51,17 @@ class CentrumDetector(object):
         self.last_before_bar_high: float = 0.0  # 上上个有效的bar的high
         self.last_before_bar_low: float = 0.0  # 上上个有效的bar的low
 
-        # self.pivot_s: Series = None
         self.pivot_df: DataFrame = None     # pivot,high,low, 存储顶底分型的high/low, pivot=1 & -1表示确定的顶底分型， 2 & -2 表示candidate pivot, 3 & -3 表示历史的candidate pivot
+
+        self.source_df: DataFrame = None
+        self.backup_point: Dict = {}        # 用来备份当前的所有状态
 
     def init_detector(self, source_df: DataFrame) -> bool:
         if len(source_df) < 2:
             print("[Centrum][Error]Init detector Error! source_df is too short, less than 2")
             return False
 
-        # self.pivot_s = Series(0, index=source_df.index)
+        self.source_df = source_df
         self.pivot_df = DataFrame(columns=['pivot', 'high', 'low'], index=source_df.index)
         self.last_bar_high = source_df.high.iloc[0]
         self.last_bar_low = source_df.low.iloc[0]
@@ -70,11 +73,16 @@ class CentrumDetector(object):
         return True
 
     def new_bar(self, source_df: DataFrame):
-        # for x in range(len(self.pivot_s), len(source_df)):
-        for x in range(len(self.pivot_df), len(source_df)):
-            # self.pivot_s.loc[source_df.index[x]] = 0
-            self.pivot_df.loc[source_df.index[x]] = Series(data=[0, None, None], index=['pivot', 'high', 'low'])
-        self.detect_next_pivot(source_df)
+        pivot_len = len(self.pivot_df)
+        source_len = len(source_df)
+        if pivot_len < source_len:
+            for x in range(pivot_len, source_len):
+                self.pivot_df.loc[source_df.index[x]] = Series(data=[0, None, None], index=['pivot', 'high', 'low'])
+            self.backup_point = self.backup_current_stats()
+            self.detect_next_pivot(source_df)
+        else:
+            self.restore_to_last_backup_point(self.backup_point)
+            self.detect_next_pivot(source_df)
 
     def detect_next_pivot(self, source_df: DataFrame):
         last_high = self.last_bar_high
@@ -86,7 +94,7 @@ class CentrumDetector(object):
         is_contain = False
 
         # 处理包含关系
-        if (high >= last_high and low <= last_low) or (high <= last_high and low >= last_low):
+        if self.enableContain and ((high >= last_high and low <= last_low) or (high <= last_high and low >= last_low)):
             # 短期上升
             if self.last_before_bar_high < last_high:
                 current_high = max(high, last_high)
@@ -105,13 +113,13 @@ class CentrumDetector(object):
 
             new_candidate_pivot_type = 0
             # 确定新的candidate pivot
-            if self.last_before_bar_high != 0.0 and self.last_before_bar_low != 0.0:
+            if not (self.last_before_bar_high == 0.0 and self.last_before_bar_low == 0.0):
                 # 新的顶分型成立
-                if last_high > current_high and last_high > self.last_before_bar_high and last_low > current_low and last_low > self.last_before_bar_low:
+                if last_high > current_high and last_high > self.last_before_bar_high and last_low >= current_low and last_low >= self.last_before_bar_low:
                     new_candidate_pivot_type = 1
 
                 # 新的底分型成立
-                if last_high < current_high and last_high < self.last_before_bar_high and last_low < current_low and last_low < self.last_before_bar_low:
+                if last_high <= current_high and last_high <= self.last_before_bar_high and last_low < current_low and last_low < self.last_before_bar_low:
                     new_candidate_pivot_type = -1
 
             if new_candidate_pivot_type != 0:
@@ -209,3 +217,36 @@ class CentrumDetector(object):
     def last_top_date(self):
         ups = self.pivot_df[self.pivot_df["pivot"].isin([1, 2])]
         return ups.index[-1] if len(ups) > 0 else None
+
+    def backup_current_stats(self):
+        backup_point = {}
+        self_dict = vars(self)
+        for name, value in self_dict.items():
+            if name not in ['name', 'valid_bars', 'pivot_df', 'backup_point']:
+                backup_point[name] = value
+
+        if self.last_backup_pivot_index is not None:
+            backup_point['last_candidate_pivot_index_value_s'] = self.pivot_df.loc[self.last_candidate_pivot_index]
+        if self.last_pivot_index is not None:
+            backup_point['last_pivot_index_value_s'] = self.pivot_df.loc[self.last_pivot_index]
+        return backup_point
+
+    def restore_to_last_backup_point(self, backup_point: Dict):
+        for name, value in backup_point.items():
+            if name not in ['last_candidate_pivot_index_value_s', 'last_pivot_index_value_s']:
+                setattr(self, name, value)
+
+        if 'last_candidate_pivot_index_value_s' in backup_point.keys():
+            last_candidate_pivot_index = backup_point['last_candidate_pivot_index']
+            self.pivot_df.loc[last_candidate_pivot_index] = backup_point['last_candidate_pivot_index_value_s']
+        if 'last_pivot_index_value_s' in backup_point.keys():
+            last_pivot_index = backup_point['last_pivot_index']
+            self.pivot_df.loc[last_pivot_index] = backup_point['last_pivot_index_value_s']
+
+    def latest_pivot_df(self, last_signal_days, today):
+        new_pivot_df = self.pivot_df.copy()
+        # 对于最新出现的backup pivot，需要纳入到背离范围
+        if self.last_backup_pivot_index is not None and self.last_backup_pivot_index + timedelta(days=last_signal_days) >= today:
+            new_pivot_df.loc[self.last_backup_pivot_index] = Series(data=[self.last_backup_pivot_type * 3, self.last_backup_pivot_high, self.last_backup_pivot_low], index=['pivot', 'high', 'low'])
+
+        return new_pivot_df
