@@ -2,6 +2,7 @@ from typing import Any
 
 from ex_vnpy.position import Position
 from src.helper.order_manager import OrderManager
+from vnpy.trader.constant import Interval
 from vnpy.trader.utility import virtual
 from vnpy_ctastrategy import CtaTemplate
 
@@ -65,3 +66,5 @@ class ExStrategyTemplate(CtaTemplate):
     def to_string(self) -> str:
         pass
 
+    def to_tv_pine_code(self, interval: Interval):
+        pass
