@@ -80,10 +80,11 @@ class SourceManager(object):
             self.dc_detector.new_bar(self.daily_df)
 
         if self.inited:
-            week_bar_cnt = len(self.weekly_df) if self.weekly_df is not None else 0
+            # week_bar_cnt = len(self.weekly_df) if self.weekly_df is not None else 0
             self.update_weekly_df()
-            if self.centrum and self.weekly_df is not None and week_bar_cnt < len(self.weekly_df):   # 只有在week bar完成，才进行pivot探测
-                self.wc_detector.new_bar(self.weekly_df.iloc[:-1])
+            if self.centrum and self.weekly_df is not None: #and week_bar_cnt < len(self.weekly_df):   # 只有在week bar完成，才进行pivot探测
+                # self.wc_detector.new_bar(self.weekly_df.iloc[:-1])
+                self.wc_detector.new_bar(self.weekly_df)
 
     def resample_to_week_data(self, df):
         w_df = df.resample('W').agg(self.func_price_map).dropna()
