@@ -235,9 +235,10 @@ class CentrumDetector(object):
         return backup_point
 
     def restore_to_last_backup_point(self, backup_point: Dict):
-        for name, value in backup_point.items():
-            if name not in ['last_candidate_pivot_index_value_s', 'last_pivot_index_value_s']:
-                setattr(self, name, value)
+        if self.last_candidate_pivot_index is not None and 'last_candidate_pivot_index' in backup_point.keys() and self.last_candidate_pivot_index != backup_point['last_candidate_pivot_index']:
+            self.pivot_df.loc[self.last_candidate_pivot_index, 'pivot'] = 0
+        if self.last_pivot_index is not None and 'last_pivot_index' in backup_point.keys() and self.last_pivot_index != backup_point['last_pivot_index']:
+            self.pivot_df.loc[self.last_pivot_index, 'pivot'] *= 2
 
         if 'last_candidate_pivot_index_value_s' in backup_point.keys():
             last_candidate_pivot_index = backup_point['last_candidate_pivot_index']
@@ -245,6 +246,11 @@ class CentrumDetector(object):
         if 'last_pivot_index_value_s' in backup_point.keys():
             last_pivot_index = backup_point['last_pivot_index']
             self.pivot_df.loc[last_pivot_index] = backup_point['last_pivot_index_value_s']
+
+        for name, value in backup_point.items():
+            if name not in ['last_candidate_pivot_index_value_s', 'last_pivot_index_value_s']:
+                setattr(self, name, value)
+
 
     def latest_pivot_df(self, last_signal_days, today):
         new_pivot_df = self.pivot_df.copy()
