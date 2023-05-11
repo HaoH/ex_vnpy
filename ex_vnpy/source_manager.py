@@ -142,6 +142,39 @@ class SourceManager(object):
 
         return self.weekly_df['low'][-1 * n:].min()
 
+    def recent_week_hl_gap(self, recent_weeks):
+        """
+        计算最近的week_num的high-low的最大值
+        :param recent_weeks:
+        :return:
+        """
+        if self.weekly_df is None:
+            return 0
+
+        n = recent_weeks
+        if len(self.weekly_df) < recent_weeks:
+            n = len(self.weekly_df)
+
+        data = self.weekly_df.iloc[-1 * n:]
+        hl_gap_s = (data['high'] - data['low'])/data['close']
+        return hl_gap_s.max()
+
+    def last_week_hl_gap(self, week_num):
+        """
+        计算第week_num的high-low
+        :param week_num:
+        :return:
+        """
+        if self.weekly_df is None:
+            return 0
+
+        n = week_num
+        if len(self.weekly_df) < week_num:
+            n = len(self.weekly_df)
+
+        data = self.weekly_df.iloc[-1 * n]
+        return (data['high'] - data['low'])/data['close']
+
     def get_dataframe(self, interval: Interval):
         return self.weekly_df if interval == Interval.WEEKLY else self.data_df
 
@@ -214,6 +247,21 @@ class SourceManager(object):
             return None
 
         return self.weekly_df.iloc[-1, :]
+
+    @property
+    def last_bar(self) -> Series:
+        """
+        当周的上一个周
+        :return:
+        """
+        source_df = self.daily_df if self.interval == Interval.DAILY else self.weekly_df
+        if source_df is None:
+            return None
+
+        if len(source_df) < 2:
+            return source_df.iloc[-1, :]
+
+        return source_df.iloc[-2, :]
 
     @property
     def is_up(self) -> bool:
