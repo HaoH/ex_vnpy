@@ -1,5 +1,7 @@
+import logging
+from dataclasses import is_dataclass
 from datetime import datetime, timedelta
-from typing import Optional, Any
+from typing import Optional, Any, Dict, List
 
 import pandas as pd
 from pandas import DataFrame, Series
@@ -8,6 +10,13 @@ from ex_vnpy.centrum_detector import CentrumDetector
 from vnpy.trader.constant import Interval, Exchange
 from vnpy.trader.object import BarData
 from pandas.tseries.frequencies import to_offset
+
+import talipp.indicators as tainds
+from talipp.indicators import Indicator
+from talipp.ohlcv import OHLCVFactory, OHLCV
+
+
+logger = logging.getLogger("SourceManager")
 
 
 class SourceManager(object):
@@ -52,6 +61,13 @@ class SourceManager(object):
             self.dc_detector.init_detector(self.daily_df)
             self.wc_detector.init_detector(self.weekly_df)
 
+        # 增量指标
+        self.ta = None
+        self.indicators: Dict[str, Indicator] = {}
+        self.ind_inputs: Dict[str, List] = {}
+        self.ind_outputs: Dict[str, Any] = {}
+        self.ind_interval: Dict[str, Interval] = {}
+
     def update_meta(self, setting):
         if not self.inited and self.count >= self.size:
             self.inited = True
@@ -79,12 +95,31 @@ class SourceManager(object):
         if self.centrum:
             self.dc_detector.new_bar(self.daily_df)
 
-        if self.inited:
-            # week_bar_cnt = len(self.weekly_df) if self.weekly_df is not None else 0
-            self.update_weekly_df()
-            if self.centrum and self.weekly_df is not None: #and week_bar_cnt < len(self.weekly_df):   # 只有在week bar完成，才进行pivot探测
-                # self.wc_detector.new_bar(self.weekly_df.iloc[:-1])
-                self.wc_detector.new_bar(self.weekly_df)
+        if not self.inited:
+            return
+
+        # week_bar_cnt = len(self.weekly_df) if self.weekly_df is not None else 0
+        self.update_weekly_df()
+        if self.centrum and self.weekly_df is not None: #and week_bar_cnt < len(self.weekly_df):   # 只有在week bar完成，才进行pivot探测
+            # self.wc_detector.new_bar(self.weekly_df.iloc[:-1])
+            self.wc_detector.new_bar(self.weekly_df)
+
+        # 更新指标计算
+        for ind_name, ind in self.indicators.items():
+            source_df = self.get_dataframe(self.ind_interval[ind_name])
+            input_names = self.ind_inputs[ind_name]
+            new_bar = source_df[input_names].iloc[-1]
+            new_data = new_bar if len(input_names) == 1 else OHLCV(**(new_bar.to_dict()))
+
+            ind_len = len(ind.input_values)
+            data_len = len(source_df)
+            if data_len == ind_len:
+                ind.update_input_value(new_data)
+            elif data_len == ind_len + 1:
+                ind.add_input_value(new_data)
+            else:
+                logger.error("[ERROR] INDICATOR ERROR, length is not matched!")
+                raise Exception()
 
     def resample_to_week_data(self, df):
         w_df = df.resample('W').agg(self.func_price_map).dropna()
@@ -330,3 +365,38 @@ class SourceManager(object):
 
     def centrum_detector(self, interval: Interval) -> CentrumDetector:
         return self.dc_detector if interval == Interval.DAILY else self.wc_detector
+
+    def init_indicators(self, ta):
+        # 初始化指标参数
+        self.ta = ta
+        for ind in self.ta:
+            ind_name = ind["name"]
+            params = ind["params"] if "params" in ind and isinstance(ind["params"], tuple) else tuple()
+            self.indicators[ind_name] = getattr(tainds, ind["kind"])(*params)
+            self.ind_inputs[ind_name] = ind["input_values"]
+            self.ind_outputs[ind_name] = ind['output_values']
+            self.ind_interval[ind_name] = ind['interval']
+
+        # 初始化 indicator 指标计算
+        for ind_name, ind in self.indicators.items():
+            input_names = self.ind_inputs[ind_name]
+            interval = self.ind_interval[ind_name]
+            source_df = self.get_dataframe(interval)
+            if len(input_names) == 1:
+                input_values = source_df[input_names[0]].to_list()
+            else:
+                data = source_df[input_names].to_dict("list")
+                input_values = OHLCVFactory.from_dict(data)
+            ind.initialize(input_values=input_values)
+
+    def get_indicator_values(self, ind_name):
+        indicator = self.indicators[ind_name]
+        if is_dataclass(indicator.output_values[0]):
+            outputs = indicator.to_lists()
+            for new_name, origin_name in self.ind_outputs[ind_name].items():
+                if new_name != origin_name:        # 名字存在映射
+                    outputs[new_name] = outputs.pop(origin_name)
+        else:
+            new_name = self.ind_outputs[ind_name]
+            outputs = {new_name: indicator.output_values}
+        return outputs

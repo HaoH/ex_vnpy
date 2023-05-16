@@ -1,6 +1,6 @@
 import os
 from datetime import timedelta, datetime
-from typing import Any
+from typing import Any, Dict, List
 
 from ex_vnpy.position import Position
 from src.helper.order_manager import OrderManager
@@ -19,6 +19,7 @@ class ExStrategyTemplate(CtaTemplate):
     om: OrderManager = None
     position: Position = None
     price_tick: float = 0.01
+    ta: Dict = None
 
     def __init__(
         self,
@@ -35,11 +36,12 @@ class ExStrategyTemplate(CtaTemplate):
         self.position = Position(price_tick=self.price_tick)
         self.today = None
 
-    def set_source_manager(self, source: SourceManager):
+    def init_source_manager(self, source: SourceManager):
         self.sm = source
+        self.sm.init_indicators(self.ta)
 
     def on_init_data(self, sm: SourceManager, om: OrderManager) -> None:
-        self.set_source_manager(sm)
+        self.init_source_manager(sm)
         self.om = om
 
     def add_signal_detector(self, detector: SignalDetector):
