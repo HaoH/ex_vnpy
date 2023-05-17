@@ -400,3 +400,7 @@ class SourceManager(object):
             new_name = self.ind_outputs[ind_name]
             outputs = {new_name: indicator.output_values}
         return outputs
+
+    def get_indicator_value(self, ind_name, key):
+        outputs = self.get_indicator_values(ind_name)
+        return outputs[key]

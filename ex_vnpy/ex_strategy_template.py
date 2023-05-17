@@ -18,6 +18,7 @@ class ExStrategyTemplate(CtaTemplate):
     sm: SourceManager = None
     om: OrderManager = None
     position: Position = None
+    fix_capital = 10000     # 资金总量
     price_tick: float = 0.01
     ta: Dict = None
 
@@ -33,7 +34,7 @@ class ExStrategyTemplate(CtaTemplate):
         self.symbol_name = ""
         self.sm = None
         self.om = None
-        self.position = Position(price_tick=self.price_tick)
+        self.position = Position(fix_capital=self.fix_capital, price_tick=self.price_tick)
         self.today = None
 
     def init_source_manager(self, source: SourceManager):
@@ -168,7 +169,7 @@ if not na(hold_days) and array.binary_search(hold_days, time) >= 0
         if order_type in (OrderType.STOP, OrderType.STOP_LOSS, OrderType.STOP_WIN):
             vt_orderid = self.om.send_stop_order(order_type, direction, offset, volume, price, trigger_price)
         else:
-            vt_orderid = self.om.send_limit_order(direction, offset, price, volume)
+            vt_orderid = self.om.send_limit_order(order_type, direction, offset, price, volume)
         return [vt_orderid]
 
     def buy_high(self, trigger_price: float, volume: float, price: float = None) -> list:

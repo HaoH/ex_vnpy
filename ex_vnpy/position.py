@@ -15,8 +15,11 @@ class Position:
     stop_loss_price: float = 0.0  # 止损价格
     stop_loss_rate: float = 0.08  # 最大止损比例
     price_tick: float = 0.01
+    fix_capital: float = 100000
 
-    def __init__(self, stop_loss_rate=0.08, volume: float = 0, price: float = 0, price_tick: float = 0.01, direction: Direction = Direction.LONG):
+    def __init__(self, fix_capital=100000, stop_loss_rate=0.08, volume: float = 0, price: float = 0, price_tick: float = 0.01, direction: Direction = Direction.LONG):
+        self.fix_capital = fix_capital
+        self.current_capital = fix_capital
         self.stop_loss_rate = stop_loss_rate
         self.volume = volume
         self.cost_price = price
@@ -28,6 +31,12 @@ class Position:
     @property
     def is_active(self) -> bool:
         return self.volume > 0
+
+    def is_capital_enough(self, direction: Direction, price, volume):
+        is_enough = True
+        if direction == Direction.LONG:
+            is_enough = self.current_capital >= price * volume
+        return is_enough
 
     def update_position(self, trade: TradeData):
         """
@@ -44,17 +53,20 @@ class Position:
                 self.cost_price = new_cost_price
                 self.last_price = trade.price
                 self.stop_loss_price = trade.price * (1 - self.stop_loss_rate)
+                self.current_capital -= trade.price * trade.volume
         elif trade.offset == Offset.CLOSE and trade.direction == Direction.SHORT:
             if self.volume - trade.volume <= 0:
                 self.volume = 0
                 self.cost_price = 0
                 self.last_price = 0
+                self.current_capital += trade.price * trade.volume
             else:
                 if trade.volume > 0:
                     new_cost_price = (self.volume * self.cost_price - trade.price * trade.volume) / (
                             self.volume - trade.volume)
                     self.volume -= trade.volume
                     self.cost_price = new_cost_price
+                    self.current_capital += trade.price * trade.volume
 
     def update_stop_loss_price(self, sm: SourceManager, first: bool = False):
         """
@@ -117,3 +129,6 @@ class Position:
 
     def accept_drawback_price(self, high_price, base_price, factor) -> float:
         return base_price + (high_price - base_price) * factor
+
+    def set_stop_loss_price(self, stop_loss: float):
+        self.stop_loss_price = stop_loss
