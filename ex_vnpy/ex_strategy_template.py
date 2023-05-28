@@ -1,25 +1,30 @@
+import logging
 import os
 from datetime import timedelta, datetime
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Tuple
 
 from ex_vnpy.position import Position
 from src.helper.order_manager import OrderManager
-from src.signals import SignalDetector
+from src.signals import SignalDetector, DetectorType
 from vnpy.trader.constant import Interval, OrderType, Direction, Offset
 from vnpy.trader.utility import virtual, TEMP_DIR
 from vnpy_ctastrategy import CtaTemplate
 
 from ex_vnpy.source_manager import SourceManager
 
+logger = logging.getLogger("ExStrategyTemp")
+
 
 class ExStrategyTemplate(CtaTemplate):
 
-    signalDetectors = []
+    detectors: Dict[DetectorType, List[SignalDetector]] = {}
     sm: SourceManager = None
     om: OrderManager = None
     position: Position = None
     fix_capital = 10000     # 资金总量
     price_tick: float = 0.01
+    stop_loss_rate: float = 0.08
+    unit_size: int = 100
     ta: Dict = None
 
     def __init__(
@@ -34,7 +39,7 @@ class ExStrategyTemplate(CtaTemplate):
         self.symbol_name = ""
         self.sm = None
         self.om = None
-        self.position = Position(fix_capital=self.fix_capital, price_tick=self.price_tick)
+        self.position = Position(fix_capital=self.fix_capital, stop_loss_rate=self.stop_loss_rate, price_tick=self.price_tick, unit_size=self.unit_size)
         self.today = None
 
     def init_source_manager(self, source: SourceManager):
@@ -46,17 +51,21 @@ class ExStrategyTemplate(CtaTemplate):
         self.om = om
 
     def add_signal_detector(self, detector: SignalDetector):
-        self.signalDetectors.append(detector)
+        if detector.sd_type not in self.detectors.keys():
+            self.detectors[detector.sd_type] = []
+        self.detectors[detector.sd_type].append(detector)
 
-    def do_scan(self) -> list:
+    def do_scan(self) -> List[Tuple[SignalDetector, float]]:
         """
         根据当前的source manager的数据状态、策略配置，进行信号扫描
-        :return:
+        :return: 返回所有[(有效信号,信号强度)] 列表
         """
         signals = []
-        for detector in self.signalDetectors:
-            if detector.is_entry_signal(self.sm):
-                signals.append(detector.signal_string())
+        for sd_type, detectorList in self.detectors.items():
+            for detector in detectorList:
+                signal_strength = detector.is_entry_signal(self.sm)
+                if signal_strength > 0:
+                    signals.append((detector, signal_strength))
         return signals
 
     def init_strategy(self):
@@ -64,8 +73,11 @@ class ExStrategyTemplate(CtaTemplate):
         回测的时候，初始化策略，对每一个指标进行首次计算
         :return:
         """
-        for detector in self.signalDetectors:
-            detector.init_detector(self.sm)
+        for sd_type, detectorList in self.detectors.items():
+            for detector in detectorList:
+                detector.init_detector(self.sm)
+        # for detector in self.detectors:
+        #     detector.init_detector(self.sm)
 
     @virtual
     def to_string(self) -> str:
@@ -204,3 +216,12 @@ if not na(hold_days) and array.binary_search(hold_days, time) >= 0
         :return:
         """
         return self.send_order(OrderType.MARKET, Direction.LONG, Offset.OPEN, volume, price,)
+
+    def log_parameters(self):
+        logger.info("Strategy:")
+        logger.info(f"stop_loss_rate: {self.stop_loss_rate}, unit_size: {self.unit_size}, price_tick: {self.price_tick}")
+        logger.info(f"ta: {self.ta}")
+        for sd_type, detectors in self.detectors.items():
+            logger.info(f"detector_type: {sd_type}")
+            for detector in detectors:
+                logger.info(detector.to_string())
