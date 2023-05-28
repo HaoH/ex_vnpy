@@ -1,4 +1,6 @@
 import logging
+from datetime import datetime
+
 from pandas import DataFrame, Series
 
 logger = logging.getLogger("StrendSensor")
@@ -58,7 +60,10 @@ class SupertrendSensor(object):
 
         close = source_df.iloc[-1][self.trend_source]
         last_close = source_df.iloc[-2][self.trend_source]
-        last_data = self.supertrend_df.loc[source_df.index[-2]]
+        if source_df.index[-1] == self.supertrend_df.index[-1]:
+            last_data = self.supertrend_df.loc[source_df.index[-2]]
+        else:
+            last_data = self.supertrend_df.loc[source_df.index[-1]]   # 每个星期第一天
         new_down = down
         if last_close > last_data['down']:
             new_down = max(last_data['down'], new_down)
@@ -75,7 +80,8 @@ class SupertrendSensor(object):
             new_trend = last_data['trend']
         else:   # 初始化数据
             price_diff = source_df.iloc[-1][self.trend_source] - source_df.iloc[0][self.trend_source]
-            new_trend = 1 if price_diff > 0 else -1
+            # new_trend = 1 if price_diff > 0 else -1
+            new_trend = -1      # 初始化趋势默认为下跌
 
         new_signal = new_trend if new_trend != last_data['trend'] else 0
         self.supertrend_df.loc[source_df.index[-1]] = Series(
@@ -96,3 +102,18 @@ class SupertrendSensor(object):
     @property
     def trend_up_price(self) -> float:
         return self.supertrend_df.iloc[-1]['up']
+
+    @property
+    def trend_start_date(self) -> datetime:
+        return self.supertrend_df[self.supertrend_df['signal'] != 0].index[-1]
+
+    @property
+    def last_trend_breakup_price(self) -> float:
+        change_df = self.supertrend_df[self.supertrend_df['signal'] != 0]
+        if len(change_df) == 0:
+            return None
+
+        if change_df.iloc[-1]['signal'] == 1:
+            return change_df.iloc[-1]['up']
+        elif change_df.iloc[-1]['signal'] == -1:
+            return change_df.iloc[-1]['down']
