@@ -167,6 +167,14 @@ class SourceManager(object):
 
         return self.weekly_df['high'][-1 * n:].max()
 
+    def recent_week_high_since(self, start: datetime):
+        # start 日期以来最高点(不包含本周), [start, last_week)
+        if self.weekly_df is None or start not in self.weekly_df.index:
+            return None
+
+        recent_df = self.weekly_df.loc[start:]
+        return recent_df['high'][:-1].max()
+
     def recent_week_low(self, recent_weeks: int = 7) -> float:
         if self.weekly_df is None:
             return None
@@ -404,3 +412,4 @@ class SourceManager(object):
     def get_indicator_value(self, ind_name, key):
         outputs = self.get_indicator_values(ind_name)
         return outputs[key]
+

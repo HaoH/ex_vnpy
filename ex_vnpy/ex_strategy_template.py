@@ -3,9 +3,10 @@ import os
 from datetime import timedelta, datetime
 from typing import Any, Dict, List, Tuple
 
-from ex_vnpy.position import Position
+from ex_vnpy.trade_plan import TradePlan
+from ex_vnpy.position_manager import PositionManager
 from src.helper.order_manager import OrderManager
-from src.signals import SignalDetector, DetectorType
+from ex_vnpy.signal import SignalDetector, DetectorType, Signal
 from vnpy.trader.constant import Interval, OrderType, Direction, Offset
 from vnpy.trader.utility import virtual, TEMP_DIR
 from vnpy_ctastrategy import CtaTemplate
@@ -18,9 +19,9 @@ logger = logging.getLogger("ExStrategyTemp")
 class ExStrategyTemplate(CtaTemplate):
 
     detectors: Dict[DetectorType, List[SignalDetector]] = {}
-    sm: SourceManager = None
-    om: OrderManager = None
-    position: Position = None
+    sm: SourceManager = None    # 数据管理器
+    om: OrderManager = None     # 订单管理器
+    pm: PositionManager = None  # 仓位控制器
     fix_capital = 10000     # 资金总量
     price_tick: float = 0.01
     stop_loss_rate: float = 0.08
@@ -39,7 +40,7 @@ class ExStrategyTemplate(CtaTemplate):
         self.symbol_name = ""
         self.sm = None
         self.om = None
-        self.position = Position(fix_capital=self.fix_capital, stop_loss_rate=self.stop_loss_rate, price_tick=self.price_tick, unit_size=self.unit_size)
+        self.pm = PositionManager(fix_capital=self.fix_capital, stop_loss_rate=self.stop_loss_rate, price_tick=self.price_tick, unit_size=self.unit_size)
         self.today = None
 
     def init_source_manager(self, source: SourceManager):
@@ -55,7 +56,7 @@ class ExStrategyTemplate(CtaTemplate):
             self.detectors[detector.sd_type] = []
         self.detectors[detector.sd_type].append(detector)
 
-    def do_scan(self) -> List[Tuple[SignalDetector, float]]:
+    def do_scan(self) -> List[Signal]:
         """
         根据当前的source manager的数据状态、策略配置，进行信号扫描
         :return: 返回所有[(有效信号,信号强度)] 列表
@@ -63,9 +64,9 @@ class ExStrategyTemplate(CtaTemplate):
         signals = []
         for sd_type, detectorList in self.detectors.items():
             for detector in detectorList:
-                signal_strength = detector.is_entry_signal(self.sm)
-                if signal_strength > 0:
-                    signals.append((detector, signal_strength))
+                signal = detector.is_entry_signal(self.sm)
+                if signal:
+                    signals.append(signal)
         return signals
 
     def init_strategy(self):
