@@ -14,6 +14,7 @@ from pandas.tseries.frequencies import to_offset
 import talipp.indicators as tainds
 from talipp.indicators import Indicator
 from talipp.ohlcv import OHLCVFactory, OHLCV
+import ex_vnpy.indicators as exinds
 
 
 logger = logging.getLogger("SourceManager")
@@ -157,15 +158,22 @@ class SourceManager(object):
             #     self.weekly_df.drop(last_week_df.index, inplace=True)
             #     self.weekly_df = pd.concat([self.weekly_df, recent_df[new_data_index:]])
 
-    def recent_week_high(self, recent_weeks: int = 7) -> float:
+    def recent_week_high(self, recent_weeks: int = 7, last_contained: bool = True) -> float:
+        """
+        判断最近N周的价格高点
+        :param recent_weeks:
+        :param last_contained: 是否包含最后一周的数据，默认为包含。如果当周要根据价格突破判断入场位置的话，则不应该包含当周（最后一周）的数据；
+        :return:
+        """
         if self.weekly_df is None:
             return None
 
         n = recent_weeks
-        if len(self.weekly_df) < recent_weeks:
+        if len(self.weekly_df) < recent_weeks + 1:
             n = len(self.weekly_df)
 
-        return self.weekly_df['high'][-1 * n:].max()
+        high = self.weekly_df['high']
+        return high[-1 * n:].max() if last_contained else high[-1 * (n+1): -1].max()
 
     def recent_week_high_since(self, start: datetime):
         # start 日期以来最高点(不包含本周), [start, last_week)
@@ -175,15 +183,16 @@ class SourceManager(object):
         recent_df = self.weekly_df.loc[start:]
         return recent_df['high'][:-1].max()
 
-    def recent_week_low(self, recent_weeks: int = 7) -> float:
+    def recent_week_low(self, recent_weeks: int = 7, last_contained: bool = True) -> float:
         if self.weekly_df is None:
             return None
 
         n = recent_weeks
-        if len(self.weekly_df) < recent_weeks:
+        if len(self.weekly_df) < recent_weeks + 1:
             n = len(self.weekly_df)
 
-        return self.weekly_df['low'][-1 * n:].min()
+        low = self.weekly_df['low']
+        return low[-1 * n:].min() if last_contained else low[-1 * (n+1): -1].min()
 
     def recent_week_hl_gap(self, recent_weeks):
         """
@@ -380,7 +389,8 @@ class SourceManager(object):
         for ind in self.ta:
             ind_name = ind["name"]
             params = ind["params"] if "params" in ind and isinstance(ind["params"], tuple) else tuple()
-            self.indicators[ind_name] = getattr(tainds, ind["kind"])(*params)
+            module_name = tainds if hasattr(tainds, ind["kind"]) else exinds
+            self.indicators[ind_name] = getattr(module_name, ind["kind"])(*params)
             self.ind_inputs[ind_name] = ind["input_values"]
             self.ind_outputs[ind_name] = ind['output_values']
             self.ind_interval[ind_name] = ind['interval']
