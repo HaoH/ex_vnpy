@@ -1,6 +1,6 @@
 import logging
 from math import floor
-from typing import List
+from typing import List, Dict
 
 from ex_vnpy.signal import Signal
 from ex_vnpy.trade_plan import TradePlan
@@ -37,8 +37,9 @@ class PositionManager(object):
     total_volume: float = 0
     cost_price: float = 0       # 成本价
     last_price: float = 0       # 最后入场价
+    stoploss_ind: Dict = None   # 止损指标
 
-    def __init__(self, fix_capital=100000, stop_loss_rate=0.08, price_tick: float = 0.01, unit_size: int = 100):
+    def __init__(self, fix_capital=100000, stop_loss_rate=0.08, price_tick: float = 0.01, unit_size: int = 100, stoploss_ind: Dict = None):
         self.fix_capital = fix_capital
         self.current_capital = fix_capital
         self.unit_size = unit_size
@@ -46,6 +47,7 @@ class PositionManager(object):
         self.stoploss_rate = stop_loss_rate
         self.total_volume = 0
         self.positions = []
+        self.stoploss_ind = stoploss_ind
 
     def is_capital_enough(self, direction: Direction, price, volume):
         is_enough = True
@@ -118,7 +120,7 @@ class PositionManager(object):
         available_capital = min(self.current_capital, plan_capital)
         max_volume = floor(available_capital * 0.999 / (self.unit_size * buy_price))
 
-        tp = TradePlan(trigger_price, buy_price, sl_price, max_volume, sm.today, total_signal_strength, stoploss_rate)
+        tp = TradePlan(trigger_price, buy_price, sl_price, max_volume, sm.today, total_signal_strength, stoploss_rate, self.stoploss_ind)
 
         detectors = [s.detector for s in signals]
         tp.set_detectors(detectors)

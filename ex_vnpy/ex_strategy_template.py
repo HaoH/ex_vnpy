@@ -27,6 +27,7 @@ class ExStrategyTemplate(CtaTemplate):
     stop_loss_rate: float = 0.08
     unit_size: int = 100
     ta: Dict = None
+    stoploss_ind: Dict = None
 
     def __init__(
         self,
@@ -40,7 +41,8 @@ class ExStrategyTemplate(CtaTemplate):
         self.symbol_name = ""
         self.sm = None
         self.om = None
-        self.pm = PositionManager(fix_capital=self.fix_capital, stop_loss_rate=self.stop_loss_rate, price_tick=self.price_tick, unit_size=self.unit_size)
+        self.pm = PositionManager(fix_capital=self.fix_capital, stop_loss_rate=self.stop_loss_rate,
+                                  price_tick=self.price_tick, unit_size=self.unit_size, stoploss_ind=self.stoploss_ind)
         self.today = None
 
     def init_source_manager(self, source: SourceManager):

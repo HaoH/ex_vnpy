@@ -168,12 +168,12 @@ class SourceManager(object):
         if self.weekly_df is None:
             return None
 
-        n = recent_weeks
+        n = recent_weeks if last_contained else recent_weeks + 1
         if len(self.weekly_df) < recent_weeks + 1:
             n = len(self.weekly_df)
 
         high = self.weekly_df['high']
-        return high[-1 * n:].max() if last_contained else high[-1 * (n+1): -1].max()
+        return high[-1 * n:].max() if last_contained else high[-1 * n: -1].max()
 
     def recent_week_high_since(self, start: datetime):
         # start 日期以来最高点(不包含本周), [start, last_week)
@@ -187,14 +187,14 @@ class SourceManager(object):
         if self.weekly_df is None:
             return None
 
-        n = recent_weeks
+        n = recent_weeks if last_contained else recent_weeks + 1
         if len(self.weekly_df) < recent_weeks + 1:
             n = len(self.weekly_df)
 
         low = self.weekly_df['low']
-        return low[-1 * n:].min() if last_contained else low[-1 * (n+1): -1].min()
+        return low[-1 * n:].min() if last_contained else low[-1 * n: -1].min()
 
-    def recent_week_hl_gap(self, recent_weeks):
+    def recent_week_hl_gap(self, recent_weeks, last_contained: bool = True):
         """
         计算最近的week_num的high-low的最大值
         :param recent_weeks:
@@ -203,11 +203,11 @@ class SourceManager(object):
         if self.weekly_df is None:
             return 0
 
-        n = recent_weeks
-        if len(self.weekly_df) < recent_weeks:
+        n = recent_weeks if last_contained else recent_weeks + 1
+        if len(self.weekly_df) < recent_weeks + 1:
             n = len(self.weekly_df)
 
-        data = self.weekly_df.iloc[-1 * n:]
+        data = self.weekly_df.iloc[-1 * n:] if last_contained else self.weekly_df.iloc[-1 * n: -1]
         hl_gap_s = (data['high'] - data['low'])/data['close']
         return hl_gap_s.max()
 

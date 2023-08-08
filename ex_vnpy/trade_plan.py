@@ -1,7 +1,10 @@
 import logging
 from datetime import datetime
 from enum import Enum
-from typing import List
+from math import floor
+from typing import List, Dict
+
+from pandas import Series
 
 from ex_vnpy.signal import SignalDetector
 from ex_vnpy.source_manager import SourceManager
@@ -42,6 +45,7 @@ class TradePlan:
     strength: float = 0
     detectors: List[SignalDetector] = []
     stoploss_rate: float = 0.08
+    stoploss_ind: Dict = None
 
     entry_trigger_order_id: str = ""        # 入场触发的StopOrder订单id
     entry_order_id: str = ""                # 入场的LimitOrder订单id
@@ -50,12 +54,14 @@ class TradePlan:
     stoploss_order: StopOrder = None
     # TODO: 增加stoploss order执行的limit order id
 
-    def __init__(self, entry_trigger_price, entry_buy_price, sl_price, volume, plan_date, strength, stoploss_rate = 0.08, direction: Direction = Direction.LONG):
+    def __init__(self, entry_trigger_price, entry_buy_price, sl_price, volume, plan_date, strength, stoploss_rate = 0.08, stoploss_ind = None, direction: Direction = Direction.LONG):
         self.entry_trigger_price = entry_trigger_price
         self.entry_buy_price = entry_buy_price
 
-        self.stoploss_price = sl_price
         self.stoploss_rate = stoploss_rate
+        self.stoploss_ind = stoploss_ind
+
+        self.stoploss_price = sl_price
         self.stoploss_price_date = plan_date
         self.stoploss_order: StopOrder = None
 
@@ -70,7 +76,7 @@ class TradePlan:
 
         self.entry_trigger_order_id = order_ids[0]
         self.status = PlanStatus.WAITING
-        logger.debug(f"[TP][SetOrder][EntryTrigger] trigger_order_id: {self.entry_trigger_order_id}, plan_date: {self.plan_date.strftime('%Y-%m-%d')}, status: {self.status}")
+        logger.debug(f"[TP][SetOrder][EntryTrigger] trigger_order_id: {self.entry_trigger_order_id}, plan_date: {self.plan_date.strftime('%Y-%m-%d')}, status: {self.status}, entry_trigger_price: {self.entry_trigger_price:.2f}")
 
     def set_entry_order(self, vt_orderids):
         if len(vt_orderids) <= 0:
@@ -78,12 +84,12 @@ class TradePlan:
 
         self.entry_order_id = vt_orderids[0]
         self.status = PlanStatus.OPEN
-        logger.debug(f"[TP][SetOrder][Entry] limit_order_id: {self.entry_order_id}, plan_date: {self.plan_date.strftime('%Y-%m-%d')}, status: {self.status}")
+        logger.debug(f"[TP][SetOrder][Entry] limit_order_id: {self.entry_order_id}, plan_date: {self.plan_date.strftime('%Y-%m-%d')}, status: {self.status}, entry_price_price: {self.entry_buy_price:.2f}")
 
     def set_exit_trigger_order(self, vt_orderid: str, sl_order: StopOrder):
         self.exit_trigger_order_id = vt_orderid
         self.stoploss_order = sl_order
-        logger.debug(f"[TP][SetOrder][ExitTrigger] trigger_order_id: {self.exit_trigger_order_id}, plan_date: {self.plan_date.strftime('%Y-%m-%d')}, status: {self.status}")
+        logger.debug(f"[TP][SetOrder][ExitTrigger] trigger_order_id: {self.exit_trigger_order_id}, plan_date: {self.plan_date.strftime('%Y-%m-%d')}, status: {self.status}, stoploss_price: {self.stoploss_price:.2f}")
 
     def set_exit_order(self, vt_orderids):
         if len(vt_orderids) <= 0:
@@ -91,7 +97,7 @@ class TradePlan:
 
         self.exit_order_id = vt_orderids[0]
         self.status = PlanStatus.EXIT
-        logger.debug(f"[TP][SetOrder][Exit] limit_order_id: {self.exit_order_id}, plan_date: {self.plan_date.strftime('%Y-%m-%d')}, status: {self.status}")
+        logger.debug(f"[TP][SetOrder][Exit] limit_order_id: {self.exit_order_id}, plan_date: {self.plan_date.strftime('%Y-%m-%d')}, status: {self.status}, stoploss_price: {self.stoploss_price:.2f}")
 
     @property
     def is_stoploss_order_active(self):
@@ -138,7 +144,7 @@ class TradePlan:
         """
 
         bar = sm.latest_week_bar
-        recent_low = sm.recent_week_low(11)
+        recent_low = sm.recent_week_low(11, last_contained=False)
         last_pivot_low = sm.last_bottom_low_w  # 当上一周刚出现最低的pivot的时候，有可能还没有识别出底分型
         low = min(recent_low, last_pivot_low) if last_pivot_low is not None else recent_low
 
@@ -162,10 +168,35 @@ class TradePlan:
         # stoploss_price = (low_back_price + enter_back_price) / 2
 
         # 最近1个月超速上涨，一旦回落，马上落袋
-        last_month_high = sm.recent_week_high(4)
-        last_month_low = sm.recent_week_low(4)
-        if self.is_price_high_enough(last_month_high, last_month_low, 5):
-            stoploss_price = self.accept_drawback_price(last_month_high, last_month_low, 0.618)
+        # TODO: 在大牛股趋势上，容易造成过早离场
+        # last_month_high = sm.recent_week_high(4)
+        # last_month_low = sm.recent_week_low(4)
+        # if self.is_price_high_enough(last_month_high, last_month_low, 5):
+        #     stoploss_price = self.accept_drawback_price(last_month_high, last_month_low, 0.618)
+
+        # 根据指标的变化，调整止损位
+        if self.stoploss_ind:
+            trend_change_price = stoploss_price
+            ind_values = sm.get_indicator_value(self.stoploss_ind["name"], self.stoploss_ind["signals"])
+            if self.stoploss_ind["type"] == "impulse":
+                # impulse 指标连续2周转红，第三周出场
+                if len(ind_values) > 3 and sum(ind_values[-3:-1]) <= -2:
+                    trend_change_price = sm.recent_week_low(2, last_contained=False)
+            elif self.stoploss_ind["type"] == "ema":
+                # 价格低于ema10，则止损
+                if len(ind_values) > 2:
+                    trend_change_price = ind_values[-2] * 0.98    # ema10以下2%位置
+
+            if trend_change_price > stoploss_price:
+                logger.debug(f"[TP][SLUpdate][TrendChange] date: {sm.last_date.strftime('%Y-%m-%d')}, stoploss: {stoploss_price:.2f} -> {trend_change_price:.2f}")
+                stoploss_price = trend_change_price
 
         return stoploss_price
+
+    def adjust_volume_by_market_price(self, market_price: float):
+        planned_buy_price, planned_volume = self.entry_buy_price, self.volume
+        self.entry_buy_price = market_price
+        self.volume = floor(self.volume * (planned_buy_price / market_price) * 0.98)
+        logger.debug(f"[TP][VolumeAdjust] volume: {planned_volume} -> {self.volume}, buy_price: {planned_buy_price:.2f} -> {market_price:.2f}")
+
 
