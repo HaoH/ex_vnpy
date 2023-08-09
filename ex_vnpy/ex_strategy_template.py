@@ -221,10 +221,22 @@ if not na(hold_days) and array.binary_search(hold_days, time) >= 0
         return self.send_order(OrderType.MARKET, Direction.LONG, Offset.OPEN, volume, price,)
 
     def log_parameters(self):
-        logger.info("Strategy:")
-        logger.info(f"stop_loss_rate: {self.stop_loss_rate}, unit_size: {self.unit_size}, price_tick: {self.price_tick}")
-        logger.info(f"ta: {self.ta}")
+        detector_strs = []
         for sd_type, detectors in self.detectors.items():
-            logger.info(f"detector_type: {sd_type}")
             for detector in detectors:
-                logger.info(detector.to_string())
+                detector_strs.append(detector.to_string())
+        d_content = "\n".join(detector_strs)
+
+        ta_strs = []
+        for ind in self.ta:
+            ta_str = f"kind: {ind['kind']}, params: {ind['params'] if 'params' in ind.keys() else ''}, interval: {ind['interval']}"
+            ta_strs.append(ta_str)
+        ta_content = '\n'.join(ta_strs)
+
+        content = f"""
+Strategy:
+1) stoploss_rate: {self.stop_loss_rate}, unit_size: {self.unit_size}, price_tick: {self.price_tick}
+2) detectors:
+{d_content}
+3) indicators: {ta_content}"""
+        return content

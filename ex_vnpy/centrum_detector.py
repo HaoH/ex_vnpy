@@ -60,7 +60,7 @@ class CentrumDetector(object):
         self.backup_point: Dict = {}        # 用来备份当前的所有状态
 
     def init_detector(self, source_df: DataFrame) -> bool:
-        if len(source_df) < 2:
+        if source_df is not None and len(source_df) < 2:
             logger.error("[Centrum][Error]Init detector Error! source_df is too short, less than 2")
             return False
 
