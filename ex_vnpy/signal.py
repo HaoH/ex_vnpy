@@ -94,7 +94,7 @@ class SignalDetector(ABC):
         params = []
         for param in self.parameters:
             params.append(str(getattr(self, param)))
-        return self.name + '/'.join(params)
+        return self.name + '/' + '/'.join(params)
 
     @virtual
     def get_result_detail(self):
