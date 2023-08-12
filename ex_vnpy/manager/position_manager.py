@@ -4,7 +4,7 @@ from typing import List, Dict
 
 from ex_vnpy.signal import Signal
 from ex_vnpy.trade_plan import TradePlan
-from ex_vnpy.source_manager import SourceManager
+from ex_vnpy.manager.source_manager import SourceManager
 from vnpy.trader.constant import Direction, Offset
 from vnpy.trader.object import OrderData, TradeData
 from vnpy_ctastrategy import StopOrder

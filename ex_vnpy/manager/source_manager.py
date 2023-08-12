@@ -1,12 +1,11 @@
 import logging
 from dataclasses import is_dataclass
 from datetime import datetime, timedelta
-from typing import Optional, Any, Dict, List
+from typing import Any, Dict, List
 
 import pandas as pd
 from pandas import DataFrame, Series
 
-from ex_vnpy.centrum_detector import CentrumDetector
 from vnpy.trader.constant import Interval, Exchange
 from vnpy.trader.object import BarData
 from pandas.tseries.frequencies import to_offset
@@ -15,6 +14,7 @@ import talipp.indicators as tainds
 from talipp.indicators import Indicator
 from talipp.ohlcv import OHLCVFactory, OHLCV
 import ex_vnpy.indicators as exinds
+from ex_vnpy.sensor.centrum_sensor import CentrumSensor
 
 
 logger = logging.getLogger("SourceManager")
@@ -29,13 +29,14 @@ class SourceManager(object):
     func_price_map = {'open': 'first', 'high': 'max', 'low': 'min', 'close': 'last',
                       'volume': lambda x: x.sum(min_count=1), 'turnover': lambda x: x.sum(min_count=1)}
 
-    def __init__(self, bars: list[BarData], centrum: bool = False, min_size: int = 100):
+    def __init__(self, bars: list[BarData] = [], ta: list = [], centrum: bool = False, min_size: int = 100):
         """Constructor"""
         self.exchange: Exchange = None
         self.interval: Interval = None
         self.symbol: str = None
         self.gateway_name: str = None
 
+        self.data_df: DataFrame = None
         self.daily_df: DataFrame = None
         self.weekly_df: DataFrame = None
         self.inited: bool = False
@@ -43,6 +44,37 @@ class SourceManager(object):
         self.today: datetime = bars[-1].datetime if len(bars) > 0 else None
         self.centrum = centrum
 
+        self.init_data_df(bars)
+        self.update_weekly_df()
+
+        # 更新central recognizer
+        self.dc_sensor = CentrumSensor()
+        self.wc_sensor = CentrumSensor()
+        self.init_central_sensor()
+
+        # 更新增量指标
+        self.indicators: Dict[str, Indicator] = {}
+        self.ind_inputs: Dict[str, List] = {}
+        self.ind_outputs: Dict[str, Any] = {}
+        self.ind_interval: Dict[str, Interval] = {}
+
+        self.ta = ta
+        if ta is not None and len(ta) > 0:
+            for ind in self.ta:
+                ind_name = ind["name"]
+                params = ind["params"] if "params" in ind and isinstance(ind["params"], tuple) else tuple()
+                module_name = tainds if hasattr(tainds, ind["kind"]) else exinds
+                self.indicators[ind_name] = getattr(module_name, ind["kind"])(*params)
+                self.ind_inputs[ind_name] = ind["input_values"]
+                self.ind_outputs[ind_name] = ind['output_values']
+                self.ind_interval[ind_name] = ind['interval']
+
+            self.init_indicators()
+
+        if self.count >= self.size:
+            self.inited = True
+
+    def init_data_df(self, bars: list[BarData]):
         for x in bars:
             x.datetime = x.datetime.isoformat()
         self.data_df = pd.DataFrame(data=bars, columns=['open_price', 'high_price', 'low_price', 'close_price', 'volume', 'turnover', 'open_interest', 'datetime'])
@@ -50,67 +82,73 @@ class SourceManager(object):
             columns={'open_price': 'open', 'high_price': 'high', 'low_price': 'low', 'close_price': 'close'},
             inplace=True)
         self.data_df.index = pd.DatetimeIndex(self.data_df['datetime'])
+        self.daily_df = self.data_df  # 先不做tick到daily的聚合
 
-        if len(bars) > 0:
-            self.update_meta(bars[0].__dict__)
-            if self.inited:
-                self.update_weekly_df(initialize=True)
+        if self.exchange is None and len(bars) > 0:
+            self.exchange = bars[0].exchange
+            self.interval = bars[0].interval
+            self.symbol = bars[0].symbol
+            self.gateway_name = bars[0].gateway_name
 
-        self.dc_detector = CentrumDetector()
-        self.wc_detector = CentrumDetector()
+    def init_central_sensor(self):
         if self.centrum:
-            self.dc_detector.init_detector(self.daily_df)
-            self.wc_detector.init_detector(self.weekly_df)
+            self.dc_sensor.init_sensor(self.daily_df)
+            self.wc_sensor.init_sensor(self.weekly_df)
 
-        # 增量指标
-        self.ta = None
-        self.indicators: Dict[str, Indicator] = {}
-        self.ind_inputs: Dict[str, List] = {}
-        self.ind_outputs: Dict[str, Any] = {}
-        self.ind_interval: Dict[str, Interval] = {}
+    def init_indicators(self):
+        if self.inited or len(self.daily_df) < 1:
+            return
 
-    def update_meta(self, setting):
-        if not self.inited and self.count >= self.size:
-            self.inited = True
-            self.daily_df = self.data_df  # 先不做tick到daily的聚合
-
-        if self.exchange is None:
-            self.exchange = setting['exchange']
-            self.interval = setting['interval']
-            self.symbol = setting['symbol']
-            self.gateway_name = setting['gateway_name']
+        # 初始化 indicator 指标计算
+        for ind_name, ind in self.indicators.items():
+            input_names = self.ind_inputs[ind_name]
+            interval = self.ind_interval[ind_name]
+            source_df = self.get_dataframe(interval)
+            if len(input_names) == 1:
+                input_values = source_df[input_names[0]].to_list()
+            else:
+                data = source_df[input_names].to_dict("list")
+                input_values = OHLCVFactory.from_dict(data)
+            try:
+                ind.initialize(input_values=input_values)
+            except Exception:
+                logger.error("[SM] indicator initialize error!")
 
     def update_bar(self, bar: BarData) -> None:
         """
         Update new bar data into array manager.
         """
         new_dict = bar.__dict__
-        new_dict['open'] = new_dict['open_price']
-        new_dict['high'] = new_dict['high_price']
-        new_dict['low'] = new_dict['low_price']
-        new_dict['close'] = new_dict['close_price']
-        nt = pd.to_datetime(bar.datetime.isoformat())
-        self.data_df.loc[nt, :] = new_dict
-        self.update_meta(new_dict)
+        if len(self.data_df) == 0:
+            self.init_data_df([bar])
+        else:
+            new_dict['open'] = new_dict['open_price']
+            new_dict['high'] = new_dict['high_price']
+            new_dict['low'] = new_dict['low_price']
+            new_dict['close'] = new_dict['close_price']
+            nt = pd.to_datetime(bar.datetime.isoformat())
+            self.data_df.loc[nt, :] = new_dict
+
+        self.update_weekly_df()
         self.today = bar.datetime
         if self.centrum:
-            self.dc_detector.new_bar(self.daily_df)
+            self.dc_sensor.update_bar(self.daily_df)
+            # if week_bar_cnt < len(self.weekly_df):   # 只有在week bar完成，才进行pivot探测
+            self.wc_sensor.update_bar(self.weekly_df)
 
-        if not self.inited:
-            return
+        if not self.inited and self.count >= self.size:
+            self.init_indicators()
+            self.inited = True
+        else:
+            self.update_indicators()
 
-        # week_bar_cnt = len(self.weekly_df) if self.weekly_df is not None else 0
-        self.update_weekly_df()
-        if self.centrum and self.weekly_df is not None: #and week_bar_cnt < len(self.weekly_df):   # 只有在week bar完成，才进行pivot探测
-            # self.wc_detector.new_bar(self.weekly_df.iloc[:-1])
-            self.wc_detector.new_bar(self.weekly_df)
-
+    def update_indicators(self):
         # 更新指标计算
         for ind_name, ind in self.indicators.items():
             source_df = self.get_dataframe(self.ind_interval[ind_name])
             input_names = self.ind_inputs[ind_name]
             new_bar = source_df[input_names].iloc[-1]
-            new_data = new_bar if len(input_names) == 1 else OHLCV(**(new_bar.to_dict()))
+            new_data = new_bar[input_names[0]] if len(input_names) == 1 else OHLCV(**(new_bar.to_dict()))
 
             ind_len = len(ind.input_values)
             data_len = len(source_df)
@@ -128,11 +166,11 @@ class SourceManager(object):
         w_df['datetime'] = w_df.index
         return w_df
 
-    def update_weekly_df(self, initialize = False):
-        if self.daily_df is None:
+    def update_weekly_df(self):
+        if self.daily_df is None or len(self.daily_df) <= 0:
             return
 
-        if initialize or self.weekly_df is None:
+        if self.weekly_df is None:
             self.weekly_df = self.resample_to_week_data(self.daily_df)
         else:
             last_week_dt = self.weekly_df.index[-1]
@@ -150,13 +188,6 @@ class SourceManager(object):
             else:
                 new_index = last_bar.name - timedelta(days=last_bar.name.weekday()) + timedelta(days=4)
                 self.weekly_df.loc[new_index] = last_bar
-
-            # recent_df = self.resample_to_week_data(self.daily_df[-10:])
-            # last_week_df = self.weekly_df.tail(1)
-            # new_data_index = list(recent_df.index).index(last_week_df.index)
-            # if 0 <= new_data_index < len(recent_df):
-            #     self.weekly_df.drop(last_week_df.index, inplace=True)
-            #     self.weekly_df = pd.concat([self.weekly_df, recent_df[new_data_index:]])
 
     def recent_week_high(self, recent_weeks: int = 7, last_contained: bool = True) -> float:
         """
@@ -372,43 +403,22 @@ class SourceManager(object):
                 (interval == Interval.WEEKLY and self.weekly_df is None):
             return None
 
-        source_detector = self.dc_detector if interval == Interval.DAILY else self.wc_detector
+        source_detector = self.dc_sensor if interval == Interval.DAILY else self.wc_sensor
         return source_detector.last_top_date if pivot_type == "top" else source_detector.last_bottom_date
 
     def last_pivot_price(self, interval: Interval, pivot_type: str, price_type: str = 'low') -> float:
         index = self.last_pivot_date(interval, pivot_type)
-        source_detector = self.dc_detector if interval == Interval.DAILY else self.wc_detector
+        source_detector = self.dc_sensor if interval == Interval.DAILY else self.wc_sensor
         return source_detector.pivot_df.loc[index, price_type] if index is not None else None
 
-    def centrum_detector(self, interval: Interval) -> CentrumDetector:
-        return self.dc_detector if interval == Interval.DAILY else self.wc_detector
-
-    def init_indicators(self, ta):
-        # 初始化指标参数
-        self.ta = ta
-        for ind in self.ta:
-            ind_name = ind["name"]
-            params = ind["params"] if "params" in ind and isinstance(ind["params"], tuple) else tuple()
-            module_name = tainds if hasattr(tainds, ind["kind"]) else exinds
-            self.indicators[ind_name] = getattr(module_name, ind["kind"])(*params)
-            self.ind_inputs[ind_name] = ind["input_values"]
-            self.ind_outputs[ind_name] = ind['output_values']
-            self.ind_interval[ind_name] = ind['interval']
-
-        # 初始化 indicator 指标计算
-        for ind_name, ind in self.indicators.items():
-            input_names = self.ind_inputs[ind_name]
-            interval = self.ind_interval[ind_name]
-            source_df = self.get_dataframe(interval)
-            if len(input_names) == 1:
-                input_values = source_df[input_names[0]].to_list()
-            else:
-                data = source_df[input_names].to_dict("list")
-                input_values = OHLCVFactory.from_dict(data)
-            ind.initialize(input_values=input_values)
+    def get_centrum_sensor(self, interval: Interval) -> CentrumSensor:
+        return self.dc_sensor if interval == Interval.DAILY else self.wc_sensor
 
     def get_indicator_values(self, ind_name):
         indicator = self.indicators[ind_name]
+        if len(indicator.output_values) <= 0:
+            return None
+
         if is_dataclass(indicator.output_values[0]):
             outputs = indicator.to_lists()
             for new_name, origin_name in self.ind_outputs[ind_name].items():
@@ -421,5 +431,16 @@ class SourceManager(object):
 
     def get_indicator_value(self, ind_name, key):
         outputs = self.get_indicator_values(ind_name)
-        return outputs[key]
+        return outputs[key] if outputs is not None else None
+
+    def latest_week_days(self) -> int:
+        if self.weekly_df is None:
+            return None
+
+        latest_week_date = self.weekly_df.index[-1]
+        week_first_day = latest_week_date - timedelta(days=5)
+        for i in range(2, 7):
+            if self.daily_df.index[-1 * i] < week_first_day:
+                return i - 1
+        return 1
 

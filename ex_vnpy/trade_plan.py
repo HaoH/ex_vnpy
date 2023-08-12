@@ -4,12 +4,9 @@ from enum import Enum
 from math import floor
 from typing import List, Dict
 
-from pandas import Series
-
 from ex_vnpy.signal import SignalDetector
-from ex_vnpy.source_manager import SourceManager
-from vnpy.trader.object import TradeData, OrderData
-from vnpy.trader.constant import Direction, Offset
+from ex_vnpy.manager.source_manager import SourceManager
+from vnpy.trader.constant import Direction
 from vnpy_ctastrategy import StopOrder
 from vnpy_ctastrategy.base import StopOrderStatus
 

@@ -16,11 +16,16 @@ class SupertrendSensor(object):
         self.atr_factor = atr_factor
         # super trend 相关数据
         self.supertrend_df: DataFrame = None
+        self.inited: bool = False
 
-    def init_detector(self, source_df, ind_values):
+    def init_sensor(self, source_df, ind_values):
+        if source_df is None or ind_values is None:
+            return
+
         self.supertrend_df = DataFrame(columns=['atr', 'ph', 'pl', 'pp', 'center', 'up', 'down', 'trend', 'signal'],
                                        index=source_df.index)
         self.supertrend_df.fillna(0, inplace=True)
+        self.inited = True
 
         # 初始化指标取值
         start = len(self.supertrend_df) - len(ind_values)
@@ -88,6 +93,10 @@ class SupertrendSensor(object):
             data=[atr, new_ph, new_pl, new_pp, center, new_up, new_down, new_trend, new_signal], index=['atr', 'ph', 'pl', 'pp', 'center', 'up', 'down', 'trend', 'signal'])
 
     def update_bar(self, source_df, ind_values):
+        if not self.inited:
+            self.init_sensor(source_df, ind_values)
+            return
+
         self.supertrend_df.loc[source_df.index[-1], 'atr'] = ind_values[-1]
         self.detect_next_trend(source_df)
 

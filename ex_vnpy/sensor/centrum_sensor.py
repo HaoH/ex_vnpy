@@ -9,7 +9,7 @@ from vnpy.trader.constant import Interval
 logger = logging.getLogger("CentrumDetector")
 
 
-class CentrumDetector(object):
+class CentrumSensor(object):
     """
     缠论中枢探测
     LastPivot(L)： 最后一个正式的pivot，由CandidatePivot转正而来
@@ -55,13 +55,15 @@ class CentrumDetector(object):
         self.last_before_bar_low: float = 0.0  # 上上个有效的bar的low
 
         self.pivot_df: DataFrame = None     # pivot,high,low, 存储顶底分型的high/low, pivot=1 & -1表示确定的顶底分型， 2 & -2 表示candidate pivot, 3 & -3 表示历史的candidate pivot
+        self.inited: bool = False
 
         self.source_df: DataFrame = None
         self.backup_point: Dict = {}        # 用来备份当前的所有状态
 
-    def init_detector(self, source_df: DataFrame) -> bool:
-        if source_df is not None and len(source_df) < 2:
-            logger.error("[Centrum][Error]Init detector Error! source_df is too short, less than 2")
+    def init_sensor(self, source_df: DataFrame) -> bool:
+        if source_df is None or len(source_df) < 2:
+            # logger.debug("[Centrum]Init detector Error! source_df is too short, less than 2")
+            self.inited = False
             return False
 
         self.source_df = source_df
@@ -73,11 +75,16 @@ class CentrumDetector(object):
         for i in range(1, len(source_df)):      # 从第二个bar开始，尤其是处理周线数据时，做好初始化工作
             self.detect_next_pivot(source_df.iloc[:i+1])
 
+        self.inited = True
         return True
 
-    def new_bar(self, source_df: DataFrame):
-        pivot_len = len(self.pivot_df)
+    def update_bar(self, source_df: DataFrame):
+        if not self.inited:
+            self.init_sensor(source_df)
+            return
+
         source_len = len(source_df)
+        pivot_len = len(self.pivot_df)
         if pivot_len < source_len:
             for x in range(pivot_len, source_len):
                 self.pivot_df.loc[source_df.index[x]] = Series(data=[0, None, None], index=['pivot', 'high', 'low'])
@@ -253,6 +260,9 @@ class CentrumDetector(object):
 
 
     def latest_pivot_df(self, last_signal_days, today):
+        if not self.inited:
+            return None
+
         new_pivot_df = self.pivot_df.copy()
         # 对于最新出现的backup pivot，需要纳入到背离范围
         if self.last_backup_pivot_index is not None and self.last_backup_pivot_index + timedelta(days=last_signal_days) >= today:

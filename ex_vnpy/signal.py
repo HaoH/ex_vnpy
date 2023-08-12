@@ -1,13 +1,11 @@
 from abc import ABC
-from dataclasses import dataclass
 from datetime import timedelta
 from enum import Enum
-from typing import List
 
 import pandas as pd
 from pandas import DataFrame
 
-from ex_vnpy.source_manager import SourceManager
+from ex_vnpy.manager.source_manager import SourceManager
 from vnpy.trader.constant import Direction
 from vnpy.trader.utility import virtual
 
@@ -28,7 +26,7 @@ class Signal(object):
     trigger_price: float = 0
     buy_price: float = 0
     sl_price: float = 0
-    detector = None
+    detector: 'SignalDetector' = None
 
     def __init__(self, weight, trigger_price, buy_price, sl_price, detector):
         self.weight = weight
@@ -44,7 +42,8 @@ class SignalDetector(ABC):
     sd_type: DetectorType = None
     weight: int = 1
     stop_loss_rate: float = 0.08
-    active_state = False
+    active_state: bool = True
+    inited: bool = False
 
     def __init__(self, setting=None):
         """"""
@@ -157,7 +156,8 @@ class SignalDetector(ABC):
         buy_price = sm.latest_daily_bar['close']
         if self.stop_loss_rate > 0:
             # TODO: 对于隐式背离，last_bottom_low_w 可能远远低于当前价， 当前处于 ///^ 的位置，会导致买入价异常低，订单基本无效；
-            low = min(sm.recent_week_low(3), sm.last_bottom_low_w)  # 最新一周的pivot可能还未成型
+            last_bottom_low_w = sm.last_bottom_low_w if sm.last_bottom_low_w is not None else buy_price
+            low = min(sm.recent_week_low(3), last_bottom_low_w)  # 最新一周的pivot可能还未成型
             buy_price = low / (1 - self.stop_loss_rate)
             # 如果最近出现了超过12%幅度的bar，说明价格到了强弩之末，可能暴力反弹，允许买入价适当提高3%
             if sm.recent_week_hl_gap(3) > 0.12:

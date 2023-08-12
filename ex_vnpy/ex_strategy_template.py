@@ -1,17 +1,16 @@
 import logging
 import os
 from datetime import timedelta, datetime
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List
 
-from ex_vnpy.trade_plan import TradePlan
-from ex_vnpy.position_manager import PositionManager
-from src.helper.order_manager import OrderManager
+from ex_vnpy.manager.position_manager import PositionManager
+from ex_vnpy.manager.order_manager import OrderManager
 from ex_vnpy.signal import SignalDetector, DetectorType, Signal
 from vnpy.trader.constant import Interval, OrderType, Direction, Offset
 from vnpy.trader.utility import virtual, TEMP_DIR
 from vnpy_ctastrategy import CtaTemplate
 
-from ex_vnpy.source_manager import SourceManager
+from ex_vnpy.manager.source_manager import SourceManager
 
 logger = logging.getLogger("ExStrategyTemp")
 
@@ -45,12 +44,10 @@ class ExStrategyTemplate(CtaTemplate):
                                   price_tick=self.price_tick, unit_size=self.unit_size, stoploss_ind=self.stoploss_ind)
         self.today = None
 
-    def init_source_manager(self, source: SourceManager):
+    def set_source_manager(self, source: SourceManager):
         self.sm = source
-        self.sm.init_indicators(self.ta)
 
-    def on_init_data(self, sm: SourceManager, om: OrderManager) -> None:
-        self.init_source_manager(sm)
+    def set_order_manager(self, om: OrderManager):
         self.om = om
 
     def add_signal_detector(self, detector: SignalDetector):
@@ -70,17 +67,6 @@ class ExStrategyTemplate(CtaTemplate):
                 if signal:
                     signals.append(signal)
         return signals
-
-    def init_strategy(self):
-        """
-        回测的时候，初始化策略，对每一个指标进行首次计算
-        :return:
-        """
-        for sd_type, detectorList in self.detectors.items():
-            for detector in detectorList:
-                detector.init_detector(self.sm)
-        # for detector in self.detectors:
-        #     detector.init_detector(self.sm)
 
     @virtual
     def to_string(self) -> str:
@@ -227,16 +213,9 @@ if not na(hold_days) and array.binary_search(hold_days, time) >= 0
                 detector_strs.append(detector.to_string())
         d_content = "\n".join(detector_strs)
 
-        ta_strs = []
-        for ind in self.ta:
-            ta_str = f"kind: {ind['kind']}, params: {ind['params'] if 'params' in ind.keys() else ''}, interval: {ind['interval']}"
-            ta_strs.append(ta_str)
-        ta_content = '\n'.join(ta_strs)
-
         content = f"""
-Strategy:
+Strategy
 1) stoploss_rate: {self.stop_loss_rate}, unit_size: {self.unit_size}, price_tick: {self.price_tick}
 2) detectors:
-{d_content}
-3) indicators: {ta_content}"""
+{d_content}"""
         return content
