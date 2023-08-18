@@ -1,3 +1,4 @@
+import copy
 import logging
 from dataclasses import is_dataclass
 from datetime import datetime, timedelta
@@ -75,9 +76,10 @@ class SourceManager(object):
             self.inited = True
 
     def init_data_df(self, bars: list[BarData]):
-        for x in bars:
+        init_data = copy.deepcopy(bars)
+        for x in init_data:
             x.datetime = x.datetime.isoformat()
-        self.data_df = pd.DataFrame(data=bars, columns=['open_price', 'high_price', 'low_price', 'close_price', 'volume', 'turnover', 'open_interest', 'datetime'])
+        self.data_df = pd.DataFrame(data=init_data, columns=['open_price', 'high_price', 'low_price', 'close_price', 'volume', 'turnover', 'open_interest', 'datetime'])
         self.data_df.rename(
             columns={'open_price': 'open', 'high_price': 'high', 'low_price': 'low', 'close_price': 'close'},
             inplace=True)

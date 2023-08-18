@@ -177,11 +177,11 @@ class TradePlan:
             ind_values = sm.get_indicator_value(self.stoploss_ind["name"], self.stoploss_ind["signals"])
             if self.stoploss_ind["type"] == "impulse":
                 # impulse 指标连续2周转红，第三周出场
-                if len(ind_values) > 3 and sum(ind_values[-3:-1]) <= -2:
+                if ind_values and len(ind_values) > 3 and sum(ind_values[-3:-1]) <= -2:
                     trend_change_price = sm.recent_week_low(2, last_contained=False)
             elif self.stoploss_ind["type"] == "ema":
                 # 价格低于ema10，则止损
-                if len(ind_values) > 2:
+                if ind_values and len(ind_values) > 2:
                     trend_change_price = ind_values[-2] * 0.98    # ema10以下2%位置
 
             if trend_change_price > stoploss_price:
