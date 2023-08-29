@@ -30,7 +30,7 @@ class SourceManager(object):
     func_price_map = {'open': 'first', 'high': 'max', 'low': 'min', 'close': 'last',
                       'volume': lambda x: x.sum(min_count=1), 'turnover': lambda x: x.sum(min_count=1)}
 
-    def __init__(self, bars: list[BarData] = [], ta: list = [], centrum: bool = False, min_size: int = 100):
+    def __init__(self, bars: list[BarData] = [], ta: dict = {}, centrum: bool = False, min_size: int = 100):
         """Constructor"""
         self.exchange: Exchange = None
         self.interval: Interval = None
@@ -61,9 +61,9 @@ class SourceManager(object):
 
         self.ta = ta
         if ta is not None and len(ta) > 0:
-            for ind in self.ta:
-                ind_name = ind["name"]
-                params = ind["params"] if "params" in ind and isinstance(ind["params"], tuple) else tuple()
+            for name, ind in self.ta.items():
+                ind_name = name
+                params = ind["params"] if "params" in ind and (isinstance(ind["params"], tuple) or isinstance(ind["params"], list)) else tuple()
                 module_name = tainds if hasattr(tainds, ind["kind"]) else exinds
                 self.indicators[ind_name] = getattr(module_name, ind["kind"])(*params)
                 self.ind_inputs[ind_name] = ind["input_values"]
