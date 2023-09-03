@@ -172,7 +172,7 @@ class TradePlan:
         #     stoploss_price = self.accept_drawback_price(last_month_high, last_month_low, 0.618)
 
         # 根据指标的变化，调整止损位
-        if self.stoploss_ind:
+        if self.stoploss_ind and self.stoploss_ind['enabled']:
             trend_change_price = stoploss_price
             ind_values = sm.get_indicator_value(self.stoploss_ind["name"], self.stoploss_ind["signals"])
             if self.stoploss_ind["type"] == "impulse":
