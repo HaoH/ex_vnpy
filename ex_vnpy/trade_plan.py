@@ -195,5 +195,3 @@ class TradePlan:
         self.entry_buy_price = market_price
         self.volume = floor(self.volume * (planned_buy_price / market_price) * 0.98)
         logger.debug(f"[TP][VolumeAdjust] volume: {planned_volume} -> {self.volume}, buy_price: {planned_buy_price:.2f} -> {market_price:.2f}")
-
-

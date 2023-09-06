@@ -92,7 +92,7 @@ class SignalDetector(ABC):
     def to_string(self):
         params = []
         for param in self.parameters:
-            params.append(str(getattr(self, param)))
+            params.append(f"{param}:{str(getattr(self, param))}")
         return self.name + '/' + '/'.join(params)
 
     @virtual

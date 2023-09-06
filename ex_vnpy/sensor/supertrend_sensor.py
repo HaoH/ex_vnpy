@@ -89,6 +89,13 @@ class SupertrendSensor(object):
             new_trend = -1      # 初始化趋势默认为下跌
 
         new_signal = new_trend if new_trend != last_data['trend'] else 0
+
+        # 当出现新的信号的时候，把被突破的价格记录下来，新的上升趋势时，记录突破的up值；新的下降趋势时，记录突破的down值
+        if new_signal == 1:
+            new_up = last_data["up"]
+        elif new_signal == -1:
+            new_down = last_data["down"]
+
         self.supertrend_df.loc[source_df.index[-1]] = Series(
             data=[atr, new_ph, new_pl, new_pp, center, new_up, new_down, new_trend, new_signal], index=['atr', 'ph', 'pl', 'pp', 'center', 'up', 'down', 'trend', 'signal'])
 

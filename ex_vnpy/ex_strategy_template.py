@@ -12,8 +12,6 @@ from vnpy_ctastrategy import CtaTemplate
 
 from ex_vnpy.manager.source_manager import SourceManager
 
-logger = logging.getLogger("ExStrategyTemp")
-
 
 class ExStrategyTemplate(CtaTemplate):
 
@@ -219,3 +217,6 @@ Strategy
 2) detectors:
 {d_content}"""
         return content
+
+    def get_all_trade_plans(self):
+        pass

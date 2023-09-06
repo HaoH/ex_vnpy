@@ -40,6 +40,10 @@ class OrderManager(object):
             return self.active_stop_orders[stop_order_id]
         return None
 
+    def get_limit_order(self, vt_order_id) -> OrderData:
+        if vt_order_id in self.limit_orders.keys():
+            return self.limit_orders[vt_order_id]
+        return None
     def active_limit_order(self, vt_order_id) -> OrderData:
         if vt_order_id in self.active_limit_orders.keys():
             return self.active_limit_orders[vt_order_id]
