@@ -6,6 +6,7 @@ from typing import Any, Dict, List
 from ex_vnpy.manager.position_manager import PositionManager
 from ex_vnpy.manager.order_manager import OrderManager
 from ex_vnpy.signal import SignalDetector, DetectorType, Signal
+from ex_vnpy.trade_plan import TradePlanData, TradePlan
 from vnpy.trader.constant import Interval, OrderType, Direction, Offset
 from vnpy.trader.utility import virtual, TEMP_DIR
 from vnpy_ctastrategy import CtaTemplate
@@ -14,33 +15,48 @@ from ex_vnpy.manager.source_manager import SourceManager
 
 
 class ExStrategyTemplate(CtaTemplate):
-
     detectors: Dict[DetectorType, List[SignalDetector]] = {}
-    sm: SourceManager = None    # 数据管理器
-    om: OrderManager = None     # 订单管理器
+    sm: SourceManager = None  # 数据管理器
+    om: OrderManager = None  # 订单管理器
     pm: PositionManager = None  # 仓位控制器
-    fix_capital = 10000     # 资金总量
+    stoploss_rate: float = 0.08
+
+    fix_capital = 100000  # 资金总量
     price_tick: float = 0.01
-    stop_loss_rate: float = 0.08
-    unit_size: int = 100
-    ta: Dict = None
-    stoploss_ind: Dict = None
+    unit_size: int = 100  # 每一手多少股
+    commission_rate = 0.0002  # 手续费率
+    slippage = 0.005  # 交易滑点
+    risk_free = 0
+    annual_days = 240
+
+    ta = []
+    stoploss_ind = {}
+
+    trade_plans: List[TradePlan] = []    # 当前交易计划
+    all_trade_plans: List[TradePlan] = []  # 所有交易计划
 
     def __init__(
-        self,
-        cta_engine: Any,
-        strategy_name: str,
-        vt_symbol: str,
-        setting: dict,
+            self,
+            cta_engine: Any,
+            strategy_name: str,
+            vt_symbol: str,
+            setting: dict,
     ):
 
         super().__init__(cta_engine, strategy_name, vt_symbol, setting)
         self.symbol_name = ""
         self.sm = None
         self.om = None
-        self.pm = PositionManager(fix_capital=self.fix_capital, stop_loss_rate=self.stop_loss_rate,
-                                  price_tick=self.price_tick, unit_size=self.unit_size, stoploss_ind=self.stoploss_ind)
+        self.pm = PositionManager(stoploss_rate=self.stoploss_rate,
+                                  fix_capital=self.fix_capital,
+                                  price_tick=self.price_tick,
+                                  unit_size=self.unit_size,
+                                  commission_rate=self.commission_rate,
+                                  slippage=self.slippage,
+                                  stoploss_ind=self.stoploss_ind)
         self.today = None
+        self.trade_plans = []
+        self.all_trade_plans = []
 
     def set_source_manager(self, source: SourceManager):
         self.sm = source
@@ -202,7 +218,7 @@ if not na(hold_days) and array.binary_search(hold_days, time) >= 0
         :param price:
         :return:
         """
-        return self.send_order(OrderType.MARKET, Direction.LONG, Offset.OPEN, volume, price,)
+        return self.send_order(OrderType.MARKET, Direction.LONG, Offset.OPEN, volume, price, )
 
     def log_parameters(self):
         detector_strs = []
@@ -213,10 +229,33 @@ if not na(hold_days) and array.binary_search(hold_days, time) >= 0
 
         content = f"""
 Strategy
-1) stoploss_rate: {self.stop_loss_rate}, unit_size: {self.unit_size}, price_tick: {self.price_tick}
+1) stoploss_rate: {self.stoploss_rate}, unit_size: {self.unit_size}, price_tick: {self.price_tick}, commission_rate: {self.commission_rate}, slippage: {self.slippage}
 2) detectors:
 {d_content}"""
         return content
 
+    def update_trade_settings(self, tr: dict):
+        self.update_setting(tr)
+        self.pm.update_settings(fix_capital=tr["fix_capital"],
+                                price_tick=tr["price_tick"],
+                                unit_size=tr["unit_size"],
+                                commission_rate=tr["commission_rate"],
+                                slippage=tr["slippage"])
+
     def get_all_trade_plans(self):
-        pass
+        return self.all_trade_plans
+
+    def get_all_trade_plan_data(self) -> List[TradePlanData]:
+        tps = []
+        for tp in self.all_trade_plans:
+            tpd = tp.extract_data()
+            tps.append(tpd)
+        return tps
+
+    def import_trade_plan(self, tp: TradePlan):
+        self.all_trade_plans.append(tp)
+
+    def clear_data(self):
+        self.trade_plans.clear()
+        self.all_trade_plans.clear()
+

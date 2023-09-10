@@ -25,10 +25,11 @@ class PositionInfo(object):
     stoploss_order: StopOrder
 
 
-
 class PositionManager(object):
 
-    unit_size: int = 100     # 每一手的仓位
+    unit_size: int = 100         # 每一手的仓位
+    commission_rate: float = 0.0002
+    slippage: float = 0.005
     stoploss_rate: float = 0.08  # 最大止损比例
     price_tick: float = 0.01
     fix_capital: float = 100000
@@ -39,15 +40,22 @@ class PositionManager(object):
     last_price: float = 0       # 最后入场价
     stoploss_ind: Dict = None   # 止损指标
 
-    def __init__(self, fix_capital=100000, stop_loss_rate=0.08, price_tick: float = 0.01, unit_size: int = 100, stoploss_ind: Dict = None):
-        self.fix_capital = fix_capital
-        self.current_capital = fix_capital
-        self.unit_size = unit_size
-        self.price_tick = price_tick
-        self.stoploss_rate = stop_loss_rate
-        self.total_volume = 0
+    def __init__(self, stoploss_rate=0.08, fix_capital=100000, price_tick: float = 0.01, unit_size: int = 100, commission_rate: float = 0.0002, slippage: float = 0.005, stoploss_ind: Dict = None):
+        self.stoploss_rate = stoploss_rate
+        self.update_settings(fix_capital, price_tick, unit_size, commission_rate, slippage)
+
         self.positions = []
         self.stoploss_ind = stoploss_ind
+
+    def update_settings(self, fix_capital=100000, price_tick: float = 0.01, unit_size: int = 100, commission_rate: float = 0.0002, slippage: float = 0.005):
+        self.fix_capital = fix_capital
+        self.price_tick = price_tick
+        self.unit_size = unit_size
+        self.commission_rate = commission_rate
+        self.slippage = slippage
+
+        self.current_capital = fix_capital
+        self.total_volume = 0
 
     def is_capital_enough(self, direction: Direction, price, volume):
         is_enough = True
@@ -73,6 +81,11 @@ class PositionManager(object):
         :param trade:
         :return:
         """
+        # 计算滑点、手续费
+        slippage = trade.volume * self.unit_size * self.slippage
+        turnover: float = trade.volume * self.unit_size * trade.price
+        commission = turnover * self.commission_rate
+
         if trade.offset == Offset.OPEN and trade.direction == Direction.LONG:
             if trade.volume > 0:
                 new_cost_price = (self.total_volume * self.cost_price + trade.price * trade.volume) / (
@@ -81,20 +94,23 @@ class PositionManager(object):
                 self.cost_price = new_cost_price
                 self.last_price = trade.price
                 self.current_capital -= trade.price * trade.volume * self.unit_size
-                logger.info(f"[PM][OpenPosition] date: {trade.datetime.strftime('%Y-%m-%d')}, total_volume: {self.total_volume:.2f}, current_capital: {self.current_capital:.2f}, total_value: {self.current_capital + self.total_volume * trade.price * self.unit_size:.2f}")
+                self.current_capital -= slippage + commission
+                logger.info(f"[PM][OpenPosition] date: {trade.datetime.strftime('%Y-%m-%d')}, total_volume: {self.total_volume:.2f}, current_capital: {self.current_capital:.2f}, total_value: {self.current_capital + self.total_volume * trade.price * self.unit_size:.2f}, slippage: {slippage:.2f}, commission: {commission:.2f}")
         elif trade.offset == Offset.CLOSE and trade.direction == Direction.SHORT:
             if self.total_volume - trade.volume <= 0:
                 self.total_volume = 0
                 self.cost_price = 0
                 self.last_price = 0
                 self.current_capital += trade.price * trade.volume * self.unit_size
+                self.current_capital -= slippage + commission
             else:
                 new_cost_price = (self.total_volume * self.cost_price - trade.price * trade.volume) / (
                         self.total_volume - trade.volume)
                 self.total_volume -= trade.volume
                 self.cost_price = new_cost_price
                 self.current_capital += trade.price * trade.volume * self.unit_size
-            logger.info(f"[PM][ClosePosition] date: {trade.datetime.strftime('%Y-%m-%d')}, total_volume: {self.total_volume:.2f}, current_capital: {self.current_capital:.2f}")
+                self.current_capital -= slippage + commission
+            logger.info(f"[PM][ClosePosition] date: {trade.datetime.strftime('%Y-%m-%d')}, total_volume: {self.total_volume:.2f}, current_capital: {self.current_capital:.2f}, slippage: {slippage:.2f}, commission: {commission:.2f}")
 
     @property
     def do_stop_loss(self):
@@ -120,7 +136,7 @@ class PositionManager(object):
         available_capital = min(self.current_capital, plan_capital)
         max_volume = floor(available_capital * 0.999 / (self.unit_size * buy_price))
 
-        tp = TradePlan(trigger_price, buy_price, sl_price, max_volume, sm.today, total_signal_strength, stoploss_rate, self.stoploss_ind)
+        tp = TradePlan(trigger_price, buy_price, sl_price, max_volume, sm.today, total_signal_strength, stoploss_rate=stoploss_rate, stoploss_ind=self.stoploss_ind)
 
         detectors = [s.detector for s in signals]
         tp.set_detectors(detectors)

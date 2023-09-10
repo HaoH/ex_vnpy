@@ -1,4 +1,5 @@
 import logging
+from dataclasses import dataclass, fields, asdict
 from datetime import datetime
 from enum import Enum
 from math import floor
@@ -6,7 +7,8 @@ from typing import List, Dict
 
 from ex_vnpy.signal import SignalDetector
 from ex_vnpy.manager.source_manager import SourceManager
-from vnpy.trader.constant import Direction
+from vnpy.trader.constant import Direction, Exchange
+from vnpy.trader.object import BaseData
 from vnpy_ctastrategy import StopOrder
 from vnpy_ctastrategy.base import StopOrderStatus
 
@@ -21,6 +23,33 @@ class PlanStatus(Enum):
     EXIT = 4                   # "退出中", 止损订单已触发
     CLOSE = 5                  # "已结束", 止损订单已成交, 已清仓
     CANCEL = 6                 # "已撤销"
+
+
+@dataclass
+class TradePlanData(BaseData):
+    """
+    用于记录每一笔交易的信息
+    """
+    # symbol: str
+    # exchange: Exchange
+
+    entry_trigger_order_id: str = ""        # 入场触发的StopOrder订单id
+    entry_order_id: str = ""                # 入场的LimitOrder订单id
+    exit_trigger_order_id: str = ""         # 退场的StopOrder订单id
+    exit_order_id: str = ""                 # 退场的LimitOrder订单id
+
+    direction: Direction = Direction.LONG
+    status: PlanStatus = PlanStatus.PLAN
+    plan_date: datetime = None
+    entry_date: datetime = None                   # 入场日期
+    stoploss_date: datetime = None                # 止损日期
+
+    entry_trigger_price: float = 0
+    entry_buy_price: float = 0
+    stoploss_price: float = 0
+    volume: float = 0
+    strength: float = 0
+    stoploss_rate: float = 0
 
 
 class TradePlan:
@@ -40,6 +69,7 @@ class TradePlan:
     stoploss_price: float = 0
     volume: float = 0
     strength: float = 0
+
     detectors: List[SignalDetector] = []
     stoploss_rate: float = 0.08
     stoploss_ind: Dict = None
@@ -51,21 +81,21 @@ class TradePlan:
     stoploss_order: StopOrder = None
     # TODO: 增加stoploss order执行的limit order id
 
-    def __init__(self, entry_trigger_price, entry_buy_price, sl_price, volume, plan_date, strength, stoploss_rate = 0.08, stoploss_ind = None, direction: Direction = Direction.LONG):
+    def __init__(self, entry_trigger_price, entry_buy_price, stoploss_price, volume, plan_date, strength, **kwargs):
         self.entry_trigger_price = entry_trigger_price
         self.entry_buy_price = entry_buy_price
 
-        self.stoploss_rate = stoploss_rate
-        self.stoploss_ind = stoploss_ind
-
-        self.stoploss_price = sl_price
+        self.stoploss_price = stoploss_price
         self.stoploss_price_date = plan_date
         self.stoploss_order: StopOrder = None
 
         self.volume = volume
         self.plan_date = plan_date
         self.strength = strength
-        self.direction = direction
+
+        for key, value in kwargs.items():
+            if hasattr(self, key):
+                setattr(self, key, value)
 
     def set_entry_trigger_order(self, order_ids: List[str]):
         if len(order_ids) <= 0:
@@ -195,3 +225,18 @@ class TradePlan:
         self.entry_buy_price = market_price
         self.volume = floor(self.volume * (planned_buy_price / market_price) * 0.98)
         logger.debug(f"[TP][VolumeAdjust] volume: {planned_volume} -> {self.volume}, buy_price: {planned_buy_price:.2f} -> {market_price:.2f}")
+
+    def extract_data(self):
+        tpd_values = {
+            'gateway_name': 'Backtesting'
+        }
+        tpd_fields = [f.name for f in fields(TradePlanData)]
+        for attr_name in tpd_fields:
+            if attr_name not in ["gateway_name", "extra"]:
+                tpd_values[attr_name] = getattr(self, attr_name)
+        return TradePlanData(**tpd_values)
+
+    @classmethod
+    def init_from_trade_plan_data(cls, trade_plan_data: dict) -> 'TradePlan':
+        return TradePlan(**trade_plan_data)
+
