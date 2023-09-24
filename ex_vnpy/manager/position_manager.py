@@ -129,43 +129,15 @@ class PositionManager(object):
         if trigger_price < buy_price:
             buy_price = trigger_price
 
-        sl_price = self.init_stoploss_price(buy_price, sm, signals)
-
         # 如果current_capital处于赚钱的位置，仓位也需要适当增加
         plan_capital = max(self.fix_capital, self.current_capital) * (total_signal_strength / full_strength)
         available_capital = min(self.current_capital, plan_capital)
         max_volume = floor(available_capital * 0.999 / (self.unit_size * buy_price))
 
-        tp = TradePlan(trigger_price, buy_price, sl_price, max_volume, sm.today, total_signal_strength, stoploss_rate=stoploss_rate, stoploss_ind=self.stoploss_ind)
-
         detectors = [s.detector for s in signals]
-        tp.set_detectors(detectors)
+        tp = TradePlan(trigger_price, buy_price, max_volume, sm.today, total_signal_strength, detectors=detectors, stoploss_rate=stoploss_rate, stoploss_ind=self.stoploss_ind)
+        sl_price = tp.init_stoploss_price(sm, signals)
 
         logger.info(f"[PM][NewTP] date: {sm.last_date.strftime('%Y-%m-%d')}, trigger_price: {trigger_price:.2f}, buy_price: {buy_price:.2f}, stoploss_price: {sl_price:.2f}, volume: {max_volume}, plan_capital: {available_capital:.2f}, strength: {total_signal_strength}")
 
         return tp
-
-    def init_stoploss_price(self, entry_buy_price: float, sm: SourceManager, signals: List[Signal]) -> float:
-        sl_prices = [s.sl_price for s in signals]
-        valid_sl_prices = [x for x in sl_prices if x is not None]
-
-        # 如果detector有止损设置，则采用该设置；如果没有，则采用通用策略
-        stoploss_price = 0
-        if len(valid_sl_prices) > 0:
-            stoploss_price = min(valid_sl_prices)
-
-            logger.debug(f"[PM][SLPriceInit] date: {sm.last_date.strftime('%Y-%m-%d')}, min_stoploss_prices: {stoploss_price:.2f}, valid_sl_prices: {len(valid_sl_prices)}")
-
-        elif self.do_stop_loss:
-            stoploss_price = entry_buy_price * (1 - self.stoploss_rate)
-
-            # 首次建仓，如果前低位置比固定止损比例8%要低，只要幅度在8%的50%以内，可以增大止损
-            recent_low = sm.recent_week_low(11)
-            last_pivot_low = sm.last_bottom_low_w  # 当上一周刚出现最低的pivot的时候，有可能还没有识别出底分型
-            low = min(recent_low, last_pivot_low) if last_pivot_low is not None else recent_low
-
-            if 0 < (stoploss_price - low) / stoploss_price <= 0.5:
-                stoploss_price = low
-                logger.debug(f"[PM][SLPriceAdjust] date: {sm.last_date.strftime('%Y-%m-%d')}, stoploss_price: {stoploss_price:.2f}")
-
-        return stoploss_price
