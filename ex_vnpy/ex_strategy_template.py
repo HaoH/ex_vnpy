@@ -166,9 +166,10 @@ if not na(hold_days) and array.binary_search(hold_days, time) >= 0
         fp.close()
 
     def send_order(self, order_type: OrderType, direction: Direction, offset: Offset, volume: float,
-                   price: float = None, trigger_price: float = None, **kwargs) -> list:
+                   price: float = None, trigger_price: float = None, is_protected: bool = False, **kwargs) -> list:
         """
         替代CtaTemplate的send_order
+        :param is_protected: 保护性订单，表示必须执行，一旦价格暴涨暴跌，以市价成交
         :param order_type:
         :param direction:
         :param offset:
@@ -182,16 +183,16 @@ if not na(hold_days) and array.binary_search(hold_days, time) >= 0
             return []
 
         if order_type in (OrderType.STOP, OrderType.STOP_LOSS, OrderType.STOP_WIN):
-            vt_orderid = self.om.send_stop_order(order_type, direction, offset, volume, price, trigger_price)
+            vt_orderid = self.om.send_stop_order(order_type, direction, offset, volume, price, trigger_price, is_protected)
         else:
             vt_orderid = self.om.send_limit_order(order_type, direction, offset, price, volume)
         return [vt_orderid]
 
-    def buy_high(self, trigger_price: float, volume: float, price: float = None) -> list:
+    def buy_high(self, trigger_price: float, volume: float, price: float = None, is_protected=False) -> list:
         """
         定价止损订单，价格向上触发trigger_price，以price的价格下单买入
         """
-        return self.send_order(OrderType.STOP_LOSS, Direction.LONG, Offset.OPEN, volume, price, trigger_price)
+        return self.send_order(OrderType.STOP_LOSS, Direction.LONG, Offset.OPEN, volume, price, trigger_price, is_protected)
 
     def buy_low(self, trigger_price: float, volume: float, price: float = None) -> list:
         """
@@ -205,11 +206,11 @@ if not na(hold_days) and array.binary_search(hold_days, time) >= 0
         """
         return self.send_order(OrderType.STOP_WIN, Direction.SHORT, Offset.CLOSE, volume, price, trigger_price, )
 
-    def sell_low(self, trigger_price: float, volume: float, price: float = None) -> list:
+    def sell_low(self, trigger_price: float, volume: float, price: float = None, is_protected: bool = False) -> list:
         """
         定价止损订单，价格向下触发trigger_price，以price的价格下单卖出
         """
-        return self.send_order(OrderType.STOP_LOSS, Direction.SHORT, Offset.CLOSE, volume, price, trigger_price, )
+        return self.send_order(OrderType.STOP_LOSS, Direction.SHORT, Offset.CLOSE, volume, price, trigger_price, is_protected)
 
     def buy_market(self, volume: float, price: float = None) -> list:
         """

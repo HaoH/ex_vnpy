@@ -116,9 +116,11 @@ class OrderManager(object):
                         offset: Offset,
                         volume: float,
                         price: float = None,
-                        trigger_price: float = None) -> str:
+                        trigger_price: float = None,
+                        is_protected: bool = False) -> str:
         """
 
+        :param is_protected:
         :param trigger_price:
         :param order_type:
         :param direction:
@@ -142,6 +144,7 @@ class OrderManager(object):
             datetime=self.datetime,
             stop_orderid=f"{STOPORDER_PREFIX}.{self.stop_order_count}",
             strategy_name=self.strategy.strategy_name,
+            is_protected=is_protected
         )
 
         self.active_stop_orders[stop_order.stop_orderid] = stop_order

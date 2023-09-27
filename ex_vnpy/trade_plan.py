@@ -1,14 +1,13 @@
 import logging
-from dataclasses import dataclass, fields, asdict
+from dataclasses import dataclass, fields
 from datetime import datetime
 from enum import Enum
 from math import floor
 from typing import List, Dict, Tuple
 
-from ex_vnpy.signal import SignalDetector, Signal
 from ex_vnpy.manager.source_manager import SourceManager
-from vnpy.trader.constant import Direction, Exchange
-from vnpy.trader.object import BaseData
+from ex_vnpy.signal import SignalDetector, Signal
+from vnpy.trader.constant import Direction
 from vnpy_ctastrategy import StopOrder
 from vnpy_ctastrategy.base import StopOrderStatus
 
@@ -39,6 +38,7 @@ class StoplossReason(Enum):
     Ema = 7
     LargeUp = 8
     LargeVolume = 9
+    Engine = 10     # 表示Engine执行的时候调整，一般可能是市价止损出现了跳水现象
 
 
 @dataclass
@@ -104,7 +104,6 @@ class TradePlan:
     exit_trigger_order_id: str = ""         # 退场的StopOrder订单id
     exit_order_id: str = ""                 # 退场的LimitOrder订单id
     stoploss_order: StopOrder = None
-    # TODO: 增加stoploss order执行的limit order id
 
     # 新增一种类型，止损数据，把止损价格变动原因也放进来
     stoploss_records: List[StoplossRecord] = []
@@ -241,6 +240,14 @@ class TradePlan:
             self.stoploss_price = new_sl_price
             self.stoploss_price_date = sm.today
 
+    def adjust_stoploss_price(self, stoploss_price: float, stoploss_price_date: datetime, reason: StoplossReason):
+        """
+        用于手动调整止损价格，比如说，engine在成交时遇到跳水情况，实际止损价格跟预计不一样
+        """
+        self.stoploss_price = stoploss_price
+        self.stoploss_price_date = stoploss_price_date
+        self.stoploss_records.append(StoplossRecord(stoploss_price, stoploss_price_date, reason))
+
     def get_dynamic_stoploss_price(self, sm: SourceManager) -> Tuple[float, StoplossReason]:
         """
         # 明确当前关键止损位，确保不亏钱；随着股价变动，调整止损价格、仓位
@@ -275,22 +282,22 @@ class TradePlan:
         if stoploss_price == enter_back_price:
             reason = StoplossReason.Enter_Two
 
-        # 最近1个月超速上涨，一旦回落，马上落袋
-        # TODO: 在大牛股趋势上，容易造成过早离场
+        # 最近1个月超速上涨，一旦回落，马上落袋; 在大牛股趋势上，容易造成过早离场
         # last_month_high = sm.recent_week_high(4)
         # last_month_low = sm.recent_week_low(4)
         # if self.is_price_high_enough(last_month_high, last_month_low, 5):
         #     stoploss_price = self.accept_drawback_price(last_month_high, last_month_low, 0.618)
 
-        # TODO: 日线柱出现3%波动，止损位放在该日线柱下方一个price_tick位置
-        # TODO: 考虑换成ATR的9分位
-        bar = sm.latest_daily_bar
-        hl_range = (bar["high"] - bar["low"]) / bar["close"]
-        if sm.is_up and hl_range >= 0.03:
-            if bar["low"] > stoploss_price:
-                logger.debug(f"[TP][SLUpdate][LargeUp] date: {sm.last_date.strftime('%Y-%m-%d')}, stoploss: {stoploss_price:.2f} -> {bar['low']:.2f}")
-                stoploss_price = bar["low"] - 0.01
-                reason = StoplossReason.LargeUp
+        # 日线柱出现3%波动，止损位放在该日线柱下方一个price_tick位置，可以考虑换成ATR的9分位
+        # bar = sm.latest_daily_bar
+        # hl_range = (bar["high"] - bar["low"]) / bar["close"]
+        # if sm.is_up and hl_range >= 0.03:
+        #     if bar["low"] > stoploss_price:
+        #         logger.debug(f"[TP][SLUpdate][LargeUp] date: {sm.last_date.strftime('%Y-%m-%d')}, stoploss: {stoploss_price:.2f} -> {bar['low']:.2f}")
+        #         stoploss_price = bar["low"] - 0.01
+        #         # TODO: 增加一些空间，避免频繁止损？
+        #         # stoploss_price = bar["low"] * 0.995
+        #         reason = StoplossReason.LargeUp
 
         # 根据指标的变化，调整止损位
         ind_change_price = stoploss_price
@@ -329,7 +336,7 @@ class TradePlan:
                 a_ind_change_price = ind_values[-2] * 0.98    # ema10以下2%位置
                 a_ind_reason = StoplossReason.Ema
         elif ind_type == "ema_v":
-            # TODO: 日线柱成交量3倍于最近3个月成交量加权平均，止损位放在该日线柱下方一个price_tick位置
+            # 日线柱成交量3倍于最近3个月成交量加权平均，止损位放在该日线柱下方一个price_tick位置
             if ind_values and len(ind_values) > 2:
                 bar = sm.latest_daily_bar
                 if bar["volume"] >= ind_values[-1] * ind_setting['factor']:
@@ -338,11 +345,11 @@ class TradePlan:
 
         return a_ind_change_price, a_ind_reason
 
-    def adjust_volume_by_market_price(self, market_price: float):
-        planned_buy_price, planned_volume = self.entry_buy_price, self.volume
-        self.entry_buy_price = market_price
-        self.volume = floor(self.volume * (planned_buy_price / market_price) * 0.98)
-        logger.debug(f"[TP][VolumeAdjust] volume: {planned_volume} -> {self.volume}, buy_price: {planned_buy_price:.2f} -> {market_price:.2f}")
+    # def adjust_volume_by_market_price(self, market_price: float):
+    #     planned_buy_price, planned_volume = self.entry_buy_price, self.volume
+    #     self.entry_buy_price = market_price
+    #     self.volume = floor(self.volume * (planned_buy_price / market_price) * 0.98)
+    #     logger.debug(f"[TP][VolumeAdjust] volume: {planned_volume} -> {self.volume}, buy_price: {planned_buy_price:.2f} -> {market_price:.2f}")
 
     def extract_data(self):
         tpd_values = {}

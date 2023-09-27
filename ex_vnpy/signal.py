@@ -27,13 +27,15 @@ class Signal(object):
     buy_price: float = 0
     sl_price: float = 0
     detector: 'SignalDetector' = None
+    is_predict: bool = False
 
-    def __init__(self, weight, trigger_price, buy_price, sl_price, detector):
+    def __init__(self, weight, trigger_price, buy_price, sl_price, detector, is_predict: bool = False):
         self.weight = weight
         self.trigger_price = trigger_price
         self.buy_price = buy_price
         self.sl_price = sl_price
         self.detector = detector
+        self.is_predict = is_predict
 
 
 class SignalDetector(ABC):
