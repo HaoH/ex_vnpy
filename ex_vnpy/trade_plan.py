@@ -83,6 +83,7 @@ class TradePlan:
     入场成功之后，相关的仓位信息保存在本结构中，包括入场订单、止损订单。一个股票可以同时多次入场（由不同的信号驱动）
     """
 
+    # TODO: 增加entry_trigger_date, 用来判断触发和成交的真实可行性
     direction: Direction = Direction.LONG
     status: PlanStatus = PlanStatus.PLAN
     plan_date: datetime = None
@@ -254,6 +255,7 @@ class TradePlan:
         # 不断提高调整止损点位（止盈）
         """
         bar = sm.latest_week_bar
+
         recent_low = sm.recent_week_low(11, last_contained=False)
         last_pivot_low = sm.last_bottom_low_w  # 当上一周刚出现最低的pivot的时候，有可能还没有识别出底分型
         low = min(recent_low, last_pivot_low) if last_pivot_low is not None else recent_low
@@ -270,17 +272,8 @@ class TradePlan:
             low_back_price = self.accept_drawback_price(bar.high, low, 0.382)
             reason = StoplossReason.Low_Two
 
-        # 已经从入场位置涨上去了2*stop_loss_rate，止损位提高到61%的涨幅位置
-        enter_back_price = self.stoploss_price
-        if self.is_price_high_enough(bar.high, self.entry_buy_price, 3):     # 价格超出入场价以上2个止损位
-            enter_back_price = self.accept_drawback_price(bar.high, self.entry_buy_price, 0.618)
-
-        # 两个同时满足，不要太快提高止损位
-        stoploss_price = min(low_back_price, enter_back_price)
-        # 取中间位置止损
-        # stoploss_price = (low_back_price + enter_back_price) / 2
-        if stoploss_price == enter_back_price:
-            reason = StoplossReason.Enter_Two
+        # 兜底用的止损价
+        stoploss_price = low_back_price
 
         # 最近1个月超速上涨，一旦回落，马上落袋; 在大牛股趋势上，容易造成过早离场
         # last_month_high = sm.recent_week_high(4)
@@ -288,68 +281,68 @@ class TradePlan:
         # if self.is_price_high_enough(last_month_high, last_month_low, 5):
         #     stoploss_price = self.accept_drawback_price(last_month_high, last_month_low, 0.618)
 
-        # 日线柱出现3%波动，止损位放在该日线柱下方一个price_tick位置，可以考虑换成ATR的9分位
-        # bar = sm.latest_daily_bar
-        # hl_range = (bar["high"] - bar["low"]) / bar["close"]
-        # if sm.is_up and hl_range >= 0.03:
-        #     if bar["low"] > stoploss_price:
-        #         logger.debug(f"[TP][SLUpdate][LargeUp] date: {sm.last_date.strftime('%Y-%m-%d')}, stoploss: {stoploss_price:.2f} -> {bar['low']:.2f}")
-        #         stoploss_price = bar["low"] - 0.01
-        #         # TODO: 增加一些空间，避免频繁止损？
-        #         # stoploss_price = bar["low"] * 0.995
-        #         reason = StoplossReason.LargeUp
-
         # 根据指标的变化，调整止损位
         ind_change_price = stoploss_price
         ind_reason = StoplossReason.Impulse
         if self.stoploss_ind:
             if "enabled" in self.stoploss_ind and self.stoploss_ind['enabled']:
                 # 兼容老的数据格式（仅支持一个stoploss_ind）
-                ind_change_price, ind_reason = self.get_stoploss_ind_price(sm, self.stoploss_ind["type"], self.stoploss_ind)
+                ind_change_price, ind_reason = self.get_strategy_stoploss_price(sm, self.stoploss_ind["type"], self.stoploss_ind)
             else:
                 for ind_type, ind_setting in self.stoploss_ind.items():
                     if ind_setting["enabled"]:
-                        a_ind_change_price, a_ind_reason = self.get_stoploss_ind_price(sm, ind_type, ind_setting)
+                        a_ind_change_price, a_ind_reason = self.get_strategy_stoploss_price(sm, ind_type, ind_setting)
                         if a_ind_change_price > ind_change_price:
                             ind_change_price = a_ind_change_price
                             ind_reason = a_ind_reason
 
             if ind_change_price > stoploss_price:
-                logger.debug(f"[TP][SLUpdate][TrendChange] date: {sm.last_date.strftime('%Y-%m-%d')}, stoploss: {stoploss_price:.2f} -> {ind_change_price:.2f}, change_reason: {reason.name} -> {ind_reason.name}")
+                logger.debug(f"[TP][SLUpdate][{ind_reason.name}] date: {sm.last_date.strftime('%Y-%m-%d')}, stoploss: {stoploss_price:.2f} -> {ind_change_price:.2f}, change_reason: {reason.name} -> {ind_reason.name}")
                 stoploss_price = ind_change_price
                 reason = ind_reason
 
         return stoploss_price, reason
 
-    def get_stoploss_ind_price(self, sm: SourceManager, ind_type: str, ind_setting: dict):
+    def get_strategy_stoploss_price(self, sm: SourceManager, stoploss_type: str, ind_setting: dict):
+        """
+        根据不同的止损策略计算止损价
+        """
         a_ind_change_price = self.stoploss_price
         a_ind_reason = StoplossReason.Empty
-        ind_values = sm.get_indicator_value(ind_setting["name"], ind_setting["signals"])
-        if ind_type == "impulse":
+        if stoploss_type == "impulse":
             # impulse 指标连续2周转红，第三周出场
+            ind_values = sm.get_indicator_value(ind_setting["name"], ind_setting["signals"])
             if ind_values and len(ind_values) > 3 and sum(ind_values[-3:-1]) <= -2:
                 a_ind_change_price = sm.recent_week_low(2, last_contained=False)
                 a_ind_reason = StoplossReason.Impulse
-        elif ind_type == "ema":
+        elif stoploss_type == "ema":
             # 价格低于ema10，则止损
+            ind_values = sm.get_indicator_value(ind_setting["name"], ind_setting["signals"])
             if ind_values and len(ind_values) > 2:
                 a_ind_change_price = ind_values[-2] * 0.98    # ema10以下2%位置
                 a_ind_reason = StoplossReason.Ema
-        elif ind_type == "ema_v":
+        elif stoploss_type == "ema_v":
             # 日线柱成交量3倍于最近3个月成交量加权平均，止损位放在该日线柱下方一个price_tick位置
+            ind_values = sm.get_indicator_value(ind_setting["name"], ind_setting["signals"])
             if ind_values and len(ind_values) > 2:
                 bar = sm.latest_daily_bar
                 if bar["volume"] >= ind_values[-1] * ind_setting['factor']:
                     a_ind_change_price = bar["low"] - 0.01
                     a_ind_reason = StoplossReason.LargeVolume
+        elif stoploss_type == "large_up":
+            # 日线柱出现3%波动，止损位放在该日线柱下方一个price_tick位置
+            # TODO: 可以考虑换成ATR的9分位
+            # ind_values = sm.get_indicator_value(ind_setting["name"], ind_setting["signals"])
+
+            bar = sm.latest_daily_bar
+            hl_range = (bar["high"] - bar["low"]) / bar["close"]
+            if sm.is_up and hl_range >= ind_setting["wave_percent"]:
+                a_ind_change_price = bar["low"] - 0.01
+                # TODO: 可以增加一些空间，避免频繁止损
+                # a_ind_change_price = bar["low"] * 0.99 - 0.01
+                a_ind_reason = StoplossReason.LargeUp
 
         return a_ind_change_price, a_ind_reason
-
-    # def adjust_volume_by_market_price(self, market_price: float):
-    #     planned_buy_price, planned_volume = self.entry_buy_price, self.volume
-    #     self.entry_buy_price = market_price
-    #     self.volume = floor(self.volume * (planned_buy_price / market_price) * 0.98)
-    #     logger.debug(f"[TP][VolumeAdjust] volume: {planned_volume} -> {self.volume}, buy_price: {planned_buy_price:.2f} -> {market_price:.2f}")
 
     def extract_data(self):
         tpd_values = {}
