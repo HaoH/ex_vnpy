@@ -31,14 +31,15 @@ class StoplossReason(Enum):
     Init = 0
     Detector = 1
     Dynamic = 2
-    Low_Two = 3
-    Low_Five = 4
+    LowTwo = 3
+    LowFive = 4
     Enter_Two = 5
     Impulse = 6
     Ema = 7
     LargeUp = 8
     LargeVolume = 9
     Engine = 10     # 表示Engine执行的时候调整，一般可能是市价止损出现了跳水现象
+    LostSpeed = 11
 
 
 @dataclass
@@ -64,7 +65,9 @@ class TradePlanData:
     direction: Direction = Direction.LONG
     status: PlanStatus = PlanStatus.PLAN
     plan_date: datetime = None
+    entry_trigger_date: datetime = None           # 入场触发日期
     entry_date: datetime = None                   # 入场日期
+    stoploss_trigger_date: datetime = None        # 止损触发日期
     stoploss_date: datetime = None                # 止损日期
 
     entry_trigger_price: float = 0
@@ -83,11 +86,12 @@ class TradePlan:
     入场成功之后，相关的仓位信息保存在本结构中，包括入场订单、止损订单。一个股票可以同时多次入场（由不同的信号驱动）
     """
 
-    # TODO: 增加entry_trigger_date, 用来判断触发和成交的真实可行性
     direction: Direction = Direction.LONG
     status: PlanStatus = PlanStatus.PLAN
     plan_date: datetime = None
+    entry_trigger_date: datetime = None           # 入场订单触发日期
     entry_date: datetime = None                   # 入场日期
+    stoploss_trigger_date: datetime = None        # 止损订单触发日期
     stoploss_date: datetime = None                # 止损日期
     stoploss_price_date: datetime = None          # 止损价格更新的日期，用来控制止损价格，只允许同一周内下降，跨周不允许下降
     entry_trigger_price: float = 0
@@ -149,7 +153,7 @@ class TradePlan:
 
         self.entry_order_id = vt_orderids[0]
         self.status = PlanStatus.OPEN
-        logger.debug(f"[TP][SetOrder][Entry] limit_order_id: {self.entry_order_id}, plan_date: {self.plan_date.strftime('%Y-%m-%d')}, status: {self.status}, entry_price_price: {self.entry_buy_price:.2f}")
+        logger.debug(f"[TP][SetOrder][Entry] limit_order_id: {self.entry_order_id}, plan_date: {self.plan_date.strftime('%Y-%m-%d')}, status: {self.status}, entry_price: {self.entry_buy_price:.2f}")
 
     def set_exit_trigger_order(self, vt_orderid: str, sl_order: StopOrder):
         self.exit_trigger_order_id = vt_orderid
@@ -216,18 +220,29 @@ class TradePlan:
     def update_stoploss_price(self, sm: SourceManager):
         sl_prices = [detector.stoploss_price(sm, self) for detector in self.detectors]
         valid_sl_prices = [x for x in sl_prices if x is not None]
-        reason = StoplossReason.Empty
 
         # 如果detector有止损设置，则采用该设置；如果没有，则采用通用策略
+        reason = StoplossReason.Empty
         new_sl_price = 0
+
         if len(valid_sl_prices) > 0:
             # 取所有策略的最低止损价格
             new_sl_price = min(valid_sl_prices)
             reason = StoplossReason.Detector
+            logger.debug(f"[TP][NewSL][{reason.name}] date: {sm.last_date.strftime('%Y-%m-%d')}, stoploss: {self.stoploss_price:.2f} -> {new_sl_price:.2f}, change_reason: {reason.name}")
         elif self.stoploss_rate > 0:
             # 根据价格走势，动态调整止损位
-            new_sl_price, dynamic_reason = self.get_dynamic_stoploss_price(sm)
+            dynamic_sl_price, dynamic_reason = self.get_dynamic_stoploss_price(sm)
+            new_sl_price = dynamic_sl_price
             reason = dynamic_reason
+            logger.debug(f"[TP][NewSL][{dynamic_reason.name}] date: {sm.last_date.strftime('%Y-%m-%d')}, stoploss: {self.stoploss_price:.2f} -> {new_sl_price:.2f}, change_reason: {reason.name}")
+
+        # 计算止损策略的止损价
+        ind_change_price, ind_reason = self.get_all_stoploss_prices(sm)
+        if ind_change_price > new_sl_price:
+            logger.debug(f"[TP][NewSL][Ind][{ind_reason.name}] date: {sm.last_date.strftime('%Y-%m-%d')}, stoploss: {self.stoploss_price:.2f} -> {ind_change_price:.2f}, change_reason: {ind_reason.name}")
+            new_sl_price = ind_change_price
+            reason = ind_reason
 
         # 止损价格只能上升，不能下降
         _, lw, _ = self.stoploss_price_date.isocalendar()
@@ -255,7 +270,6 @@ class TradePlan:
         # 不断提高调整止损点位（止盈）
         """
         bar = sm.latest_week_bar
-
         recent_low = sm.recent_week_low(11, last_contained=False)
         last_pivot_low = sm.last_bottom_low_w  # 当上一周刚出现最低的pivot的时候，有可能还没有识别出底分型
         low = min(recent_low, last_pivot_low) if last_pivot_low is not None else recent_low
@@ -266,11 +280,11 @@ class TradePlan:
         if self.is_price_high_enough(bar.high, low, 5):     # 价格超出low以上5个止损位
             # 当周线上涨比较多的时候，要保留日线上最近一次上涨以来 0.618 的收益
             low_back_price = self.accept_drawback_price(bar.high, low, 0.618)
-            reason = StoplossReason.Low_Five
+            reason = StoplossReason.LowFive
         elif self.is_price_high_enough(bar.high, low, 2):     # 价格超出low以上2个止损位
             # 当周线上涨不多的时候，保留周线上最近一次上涨以来 0.382的收益
             low_back_price = self.accept_drawback_price(bar.high, low, 0.382)
-            reason = StoplossReason.Low_Two
+            reason = StoplossReason.LowTwo
 
         # 兜底用的止损价
         stoploss_price = low_back_price
@@ -280,30 +294,27 @@ class TradePlan:
         # last_month_low = sm.recent_week_low(4)
         # if self.is_price_high_enough(last_month_high, last_month_low, 5):
         #     stoploss_price = self.accept_drawback_price(last_month_high, last_month_low, 0.618)
+        return stoploss_price, reason
 
+    def get_all_stoploss_prices(self, sm: SourceManager) -> Tuple[float, StoplossReason]:
         # 根据指标的变化，调整止损位
-        ind_change_price = stoploss_price
+        ind_change_price = 0
         ind_reason = StoplossReason.Impulse
         if self.stoploss_ind:
             if "enabled" in self.stoploss_ind and self.stoploss_ind['enabled']:
                 # 兼容老的数据格式（仅支持一个stoploss_ind）
-                ind_change_price, ind_reason = self.get_strategy_stoploss_price(sm, self.stoploss_ind["type"], self.stoploss_ind)
+                ind_change_price, ind_reason = self.get_stoploss_price_by_strategy(sm, self.stoploss_ind["type"], self.stoploss_ind)
             else:
                 for ind_type, ind_setting in self.stoploss_ind.items():
                     if ind_setting["enabled"]:
-                        a_ind_change_price, a_ind_reason = self.get_strategy_stoploss_price(sm, ind_type, ind_setting)
+                        a_ind_change_price, a_ind_reason = self.get_stoploss_price_by_strategy(sm, ind_type, ind_setting)
                         if a_ind_change_price > ind_change_price:
                             ind_change_price = a_ind_change_price
                             ind_reason = a_ind_reason
 
-            if ind_change_price > stoploss_price:
-                logger.debug(f"[TP][SLUpdate][{ind_reason.name}] date: {sm.last_date.strftime('%Y-%m-%d')}, stoploss: {stoploss_price:.2f} -> {ind_change_price:.2f}, change_reason: {reason.name} -> {ind_reason.name}")
-                stoploss_price = ind_change_price
-                reason = ind_reason
+        return ind_change_price, ind_reason
 
-        return stoploss_price, reason
-
-    def get_strategy_stoploss_price(self, sm: SourceManager, stoploss_type: str, ind_setting: dict):
+    def get_stoploss_price_by_strategy(self, sm: SourceManager, stoploss_type: str, ind_setting: dict):
         """
         根据不同的止损策略计算止损价
         """
@@ -341,6 +352,38 @@ class TradePlan:
                 # TODO: 可以增加一些空间，避免频繁止损
                 # a_ind_change_price = bar["low"] * 0.99 - 0.01
                 a_ind_reason = StoplossReason.LargeUp
+        elif stoploss_type == "entry_low_speed":
+            def find_real_test_days(max_test_days: int):
+                real_test_days = 0
+                for ix in range(2, max_test_days+1):
+                    if sm.daily_df.iloc[-1 * ix]["datetime"] == self.entry_date:
+                        real_test_days = ix
+                        break
+                return real_test_days
+
+            def is_speed_low(input: list, drop_days: int):
+                before = input[0]
+                valid_days = 0
+                for i in range(1, len(input)):
+                    current = input[i]
+                    if current < before:
+                        valid_days += 1
+                    else:
+                        valid_days = 0
+                    if valid_days >= drop_days:
+                        return True
+                    before = current
+                return False
+
+            # TODO: 周线转变的时候入场，如果离日线突破时间超过1周，将豁免3日试炼
+            # 入场的前N天，根据macd hist的变动进行止损
+            ind_values = sm.get_indicator_value(ind_setting["name"], ind_setting["signals"])
+            test_days, drop_days = ind_setting["test_days"]
+            real_test_days = find_real_test_days(test_days)
+            last_ind_values = ind_values[-1 * real_test_days:]
+            if None not in last_ind_values and is_speed_low(last_ind_values, drop_days):
+                a_ind_change_price = sm.daily_df.iloc[-1]["low"] * 0.99 - 0.01
+                a_ind_reason = StoplossReason.LostSpeed
 
         return a_ind_change_price, a_ind_reason
 

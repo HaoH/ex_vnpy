@@ -8,12 +8,13 @@ logger = logging.getLogger("StrendSensor")
 
 class SupertrendSensor(object):
 
-    def __init__(self, trend_type, valid_bars, trend_source, atr_factor, setting=None):
+    def __init__(self, trend_type, valid_bars, trend_source, atr_factor_up, atr_factor_down, setting=None):
         self.name = "Supertrend"
         self.trend_type = trend_type
         self.valid_bars = valid_bars
         self.trend_source = trend_source  # 指标计算的source
-        self.atr_factor = atr_factor
+        self.atr_factor_up = atr_factor_up
+        self.atr_factor_down = atr_factor_down
         # super trend 相关数据
         self.supertrend_df: DataFrame = None
         self.inited: bool = False
@@ -60,9 +61,11 @@ class SupertrendSensor(object):
             center = (source_df.iloc[-1]['high'] + source_df.iloc[-1]['low']) / 2
 
         atr = self.supertrend_df.loc[source_df.index[-1]]['atr']
-        down = center - self.atr_factor * atr
-        up = center + self.atr_factor * atr
+        down = center - self.atr_factor_down * atr
+        up = center + self.atr_factor_up * atr
 
+        #  !important: 如果使用high，会在判断向上突破的时候更快，但是趋势向下的时候判断更晚，可能会错过向下的突破（也可能是优势，规避了一些下探的假突破）
+        # TODO: 调整为high、low同时支持，向上突破使用high、向下突破使用low，最快响应趋势变化
         close = source_df.iloc[-1][self.trend_source]
         last_close = source_df.iloc[-2][self.trend_source]
         if source_df.index[-1] == self.supertrend_df.index[-1]:

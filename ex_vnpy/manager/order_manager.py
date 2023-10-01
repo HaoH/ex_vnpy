@@ -116,8 +116,7 @@ class OrderManager(object):
                         offset: Offset,
                         volume: float,
                         price: float = None,
-                        trigger_price: float = None,
-                        is_protected: bool = False) -> str:
+                        trigger_price: float = None) -> str:
         """
 
         :param is_protected:
@@ -143,8 +142,7 @@ class OrderManager(object):
             volume=volume,
             datetime=self.datetime,
             stop_orderid=f"{STOPORDER_PREFIX}.{self.stop_order_count}",
-            strategy_name=self.strategy.strategy_name,
-            is_protected=is_protected
+            strategy_name=self.strategy.strategy_name
         )
 
         self.active_stop_orders[stop_order.stop_orderid] = stop_order
@@ -152,7 +150,7 @@ class OrderManager(object):
 
         return stop_order.stop_orderid
 
-    def send_limit_order(self, order_type: OrderType, direction: Direction, offset: Offset, price: float, volume: float) -> str:
+    def send_limit_order(self, order_type: OrderType, direction: Direction, offset: Offset, price: float, volume: float, trigger_stop_orderid: str = "") -> str:
         price: float = round_to(price, self.price_tick)
         self.limit_order_count += 1
 
@@ -167,7 +165,8 @@ class OrderManager(object):
             volume=volume,
             status=Status.SUBMITTING,
             gateway_name=self.gateway_name,
-            datetime=self.datetime
+            datetime=self.datetime,
+            trigger_stop_orderid=trigger_stop_orderid
         )
 
         self.active_limit_orders[order.vt_orderid] = order
