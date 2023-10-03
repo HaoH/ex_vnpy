@@ -5,6 +5,8 @@ from enum import Enum
 from math import floor
 from typing import List, Dict, Tuple
 
+from pandas import Series
+
 from ex_vnpy.manager.source_manager import SourceManager
 from ex_vnpy.signal import SignalDetector, Signal
 from vnpy.trader.constant import Direction
@@ -38,8 +40,10 @@ class StoplossReason(Enum):
     Ema = 7
     LargeUp = 8
     LargeVolume = 9
-    Engine = 10     # 表示Engine执行的时候调整，一般可能是市价止损出现了跳水现象
+    Engine = 10         # 表示Engine执行的时候调整，一般可能是市价止损出现了跳水现象
     LostSpeed = 11
+    LevelLargeUp = 12   # 入场X天之后的大幅上涨
+    LargeRange = 13     # 上影线较长
 
 
 @dataclass
@@ -318,6 +322,27 @@ class TradePlan:
         """
         根据不同的止损策略计算止损价
         """
+        def has_large_drop(today_bar: Series, yesterday_bar: Series, atr: list, factor: int) -> bool:
+            """
+            出现大幅度drop：
+            1）实体柱在上升，且上影线长度超过 前一日的atr * factor
+            2）昨日出现大幅drop，当日股价还在攀升
+            3）出现大阴柱，跌幅超过 前一日的 atr * factor
+            :return:
+            """
+            today_max_oc = max(today_bar["open"], today_bar["close"])
+            up_shadow_line = (today_bar["high"] - today_max_oc)
+
+            yesterday_max_oc = max(yesterday_bar["open"], yesterday_bar["close"])
+            last_up_shadow_line = (yesterday_bar["high"] - yesterday_max_oc)
+
+            down_solid_body = (today_bar["open"] - today_bar["close"])
+            if (today_max_oc >= yesterday_bar["close"] and up_shadow_line >= atr[-2] * factor) or \
+                    (today_max_oc >= yesterday_max_oc and last_up_shadow_line >= atr[-3] * factor) or \
+                    down_solid_body >= atr[-2] * factor:
+                        return True
+            return False
+
         a_ind_change_price = self.stoploss_price
         a_ind_reason = StoplossReason.Empty
         if stoploss_type == "impulse":
@@ -384,6 +409,45 @@ class TradePlan:
             if None not in last_ind_values and is_speed_low(last_ind_values, drop_days):
                 a_ind_change_price = sm.daily_df.iloc[-1]["low"] * 0.99 - 0.01
                 a_ind_reason = StoplossReason.LostSpeed
+        elif stoploss_type == "mid_large_up":
+            # 入场企稳之后，出现较大幅度的上涨
+            # TODO: 考虑周线上涨幅度
+            # test_days = self.stoploss_ind["entry_low_speed"]["test_days"][0]
+            # if sm.daily_df.index[-1 * test_days] >= self.entry_date: # 已经经过了入场试炼
+            bar = sm.latest_daily_bar   # 当日
+            last_bar = sm.last_bar      # 昨日
+            ind_values = sm.get_indicator_value(ind_setting["name"], ind_setting["signals"])
+
+            # 上影线的策略优先级更高
+            # TODO: 调整large up 和large range的标准, 上影线达到1倍ATR，则为largerange，而不是固定比例
+            if not has_large_drop(bar, last_bar, ind_values, ind_setting["factor"]):
+                close_up = bar["close"] - last_bar["close"]
+                atr_y = ind_values[-2]
+                if close_up > 0 and bar["close"] >= bar["open"]:
+                    if close_up >= atr_y * 0.7:
+                        a_ind_reason = StoplossReason.LevelLargeUp
+                        a_ind_change_price = bar["low"] * 0.99 - 0.01
+                    elif close_up >= atr_y * 1:
+                        a_ind_change_price = min(bar["open"], bar["close"]) - 0.01
+                        a_ind_reason = StoplossReason.LevelLargeUp
+                    elif close_up >= atr_y * 1.3:
+                        a_ind_change_price = min(bar["open"], bar["close"]) - 0.01
+                        a_ind_reason = StoplossReason.LevelLargeUp
+
+        elif stoploss_type == "mid_large_drop":
+            # 出现明显的下调时候，止损价提高到当日实体柱的位置
+            # large_range策略不区分入场还是非入场
+
+            # test_days = self.stoploss_ind["entry_low_speed"]["test_days"][0]
+            # if sm.daily_df.index[-1 * test_days] >= self.entry_date: # 已经经过了入场试炼
+
+            bar = sm.latest_daily_bar   # 当日
+            last_bar = sm.last_bar      # 昨日
+            ind_values = sm.get_indicator_value(ind_setting["name"], ind_setting["signals"])
+            if has_large_drop(bar, last_bar, ind_values, ind_setting["factor"]):
+                # a_ind_change_price = bar["low"] * 0.98 - 0.01
+                a_ind_change_price = min(bar["close"], bar["open"]) * 0.998 - 0.01
+                a_ind_reason = StoplossReason.LargeRange
 
         return a_ind_change_price, a_ind_reason
 

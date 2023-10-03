@@ -336,7 +336,7 @@ class SourceManager(object):
     @property
     def last_bar(self) -> Series:
         """
-        当周的上一个周
+        当日/周的上一日/周
         :return:
         """
         source_df = self.daily_df if self.interval == Interval.DAILY else self.weekly_df
