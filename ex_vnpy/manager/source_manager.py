@@ -192,20 +192,27 @@ class SourceManager(object):
                 self.weekly_df.loc[new_index] = last_bar
 
     def recent_week_high(self, recent_weeks: int = 7, last_contained: bool = True) -> float:
+        return self.recent_high(Interval.WEEKLY, recent_weeks, last_contained)
+
+    def recent_daily_high(self, recent_days: int = 7, last_contained: bool = True) -> float:
+        return self.recent_high(Interval.DAILY, recent_days, last_contained)
+
+    def recent_high(self, interval: Interval, recent_bars: int = 7, last_contained: bool = True) -> float:
         """
-        判断最近N周的价格高点
-        :param recent_weeks:
+        判断最近N天/周的价格高点
+        :param recent_bars:
         :param last_contained: 是否包含最后一周的数据，默认为包含。如果当周要根据价格突破判断入场位置的话，则不应该包含当周（最后一周）的数据；
         :return:
         """
-        if self.weekly_df is None:
+        source_df = self.weekly_df if interval == Interval.WEEKLY else self.daily_df
+        if source_df is None:
             return None
 
-        n = recent_weeks if last_contained else recent_weeks + 1
-        if len(self.weekly_df) < recent_weeks + 1:
-            n = len(self.weekly_df)
+        n = recent_bars if last_contained else recent_bars + 1
+        if len(source_df) < recent_bars + 1:
+            n = len(source_df)
 
-        high = self.weekly_df['high']
+        high = source_df['high']
         return high[-1 * n:].max() if last_contained else high[-1 * n: -1].max()
 
     def recent_week_high_since(self, start: datetime):
@@ -217,15 +224,23 @@ class SourceManager(object):
         return recent_df['high'][:-1].max()
 
     def recent_week_low(self, recent_weeks: int = 7, last_contained: bool = True) -> float:
-        if self.weekly_df is None:
+        return self.recent_low(Interval.WEEKLY, recent_weeks, last_contained)
+
+    def recent_daily_low(self, recent_days: int = 7, last_contained: bool = True) -> float:
+        return self.recent_low(Interval.DAILY, recent_days, last_contained)
+
+    def recent_low(self, interval, recent_bars: int = 7, last_contained: bool = True) -> float:
+        source_df = self.weekly_df if interval == Interval.WEEKLY else self.daily_df
+        if source_df is None:
             return None
 
-        n = recent_weeks if last_contained else recent_weeks + 1
-        if len(self.weekly_df) < recent_weeks + 1:
-            n = len(self.weekly_df)
+        n = recent_bars if last_contained else recent_bars + 1
+        if len(source_df) < recent_bars + 1:
+            n = len(source_df)
 
-        low = self.weekly_df['low']
+        low = source_df['low']
         return low[-1 * n:].min() if last_contained else low[-1 * n: -1].min()
+
 
     def recent_week_hl_gap(self, recent_weeks, last_contained: bool = True):
         """
@@ -445,4 +460,3 @@ class SourceManager(object):
             if self.daily_df.index[-1 * i] < week_first_day:
                 return i - 1
         return 1
-

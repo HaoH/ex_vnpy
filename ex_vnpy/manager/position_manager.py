@@ -39,6 +39,7 @@ class PositionManager(object):
     cost_price: float = 0       # 成本价
     last_price: float = 0       # 最后入场价
     stoploss_ind: Dict = None   # 止损指标
+    stoploss_settings: Dict = None   # 止损指标
 
     def __init__(self, stoploss_rate=0.08, fix_capital=100000, price_tick: float = 0.01, unit_size: int = 100, commission_rate: float = 0.0002, slippage: float = 0.005, stoploss_ind: Dict = None):
         self.stoploss_rate = stoploss_rate
@@ -56,6 +57,9 @@ class PositionManager(object):
 
         self.current_capital = fix_capital
         self.total_volume = 0
+
+    def update_stoploss_settings(self, sl_settings: dict):
+        self.stoploss_settings = sl_settings
 
     def is_capital_enough(self, direction: Direction, price, volume):
         is_enough = True
@@ -135,7 +139,7 @@ class PositionManager(object):
         max_volume = floor(available_capital * 0.999 / (self.unit_size * buy_price))
 
         detectors = [s.detector for s in signals]
-        tp = TradePlan(trigger_price, buy_price, max_volume, sm.today, total_signal_strength, detectors=detectors, stoploss_rate=stoploss_rate, stoploss_ind=self.stoploss_ind)
+        tp = TradePlan(trigger_price, buy_price, max_volume, sm.today, total_signal_strength, detectors=detectors, stoploss_rate=stoploss_rate, stoploss_settings=self.stoploss_settings)
         sl_price = tp.init_stoploss_price(sm, signals)
 
         logger.info(f"[PM][NewTP] date: {sm.last_date.strftime('%Y-%m-%d')}, trigger_price: {trigger_price:.2f}, buy_price: {buy_price:.2f}, stoploss_price: {sl_price:.2f}, volume: {max_volume}, plan_capital: {available_capital:.2f}, strength: {total_signal_strength}")

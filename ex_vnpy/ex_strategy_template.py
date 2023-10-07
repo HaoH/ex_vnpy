@@ -31,6 +31,7 @@ class ExStrategyTemplate(CtaTemplate):
 
     ta = []
     stoploss_ind = {}
+    stoploss_settings = {}
 
     trade_plans: List[TradePlan] = []    # 当前交易计划
     all_trade_plans: List[TradePlan] = []  # 所有交易计划
@@ -238,6 +239,10 @@ Strategy
 2) detectors:
 {d_content}"""
         return content
+
+    def update_stoploss_settings(self, sl_settings: dict):
+        self.update_setting(sl_settings)
+        self.pm.update_stoploss_settings(sl_settings)
 
     def update_trade_settings(self, tr: dict):
         self.update_setting(tr)
