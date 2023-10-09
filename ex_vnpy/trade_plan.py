@@ -42,6 +42,7 @@ class StoplossReason(Enum):
     LevelLargeUp = 12   # 入场X天之后的大幅上涨
     LargeDrop = 13     # 上影线较长
     LostMovement = 14   # adx动能下降
+    TopPivot = 15       # 顶分型止损
 
 
 @dataclass
@@ -318,6 +319,8 @@ class TradePlan:
             a_ind_change_price, a_ind_reason = self.get_stoploss_price_large_drop_atr(sm, ind_setting)
         elif stoploss_type == "movement_low_speed":
             a_ind_change_price, a_ind_reason = self.get_stoploss_price_movement_low_speed(sm, ind_setting)
+        elif stoploss_type == "top_pivot":
+            a_ind_change_price, a_ind_reason = self.get_stoploss_price_top_pivot(sm, ind_setting)
 
         return a_ind_change_price, a_ind_reason
 
@@ -635,5 +638,27 @@ class TradePlan:
                 a_ind_change_price = min(bar["low"], last_bar["low"]) * 0.995 - 0.01
                 a_ind_reason = StoplossReason.LostMovement
                 return a_ind_change_price, a_ind_reason
+
+        return 0, StoplossReason.Empty
+
+    def get_stoploss_price_top_pivot(self, sm: SourceManager, settings: dict) -> Tuple[float, StoplossReason]:
+        bar = sm.latest_daily_bar   # 当日
+        last_bar = sm.last_bar      # 昨日
+
+        adx_setting = settings["adx"]
+        adx_values = sm.get_indicator_value(adx_setting["name"], adx_setting["signals"])
+
+        atr_setting = settings["atr"]
+        atr_values = sm.get_indicator_value(atr_setting["name"], atr_setting["signals"])
+
+        di_factor = settings["di_factor"]
+
+        last_pivot_s = sm.dc_sensor.pivot_df.loc[last_bar["datetime"]]
+        if last_pivot_s["pivot"] == 2:
+            di_space = atr_values[-1] * adx_values[-1]/100 * di_factor
+            a_ind_change_price = bar["low"] - di_space
+            a_ind_reason = StoplossReason.TopPivot
+            self.logger.debug(f"[TP][TopPivot] date: {sm.today.strftime('%Y-%m-%d')}, low: {last_bar['low']:.2f} -> {bar['low']:.2f}, di_space: {di_space:.2f}, a_ind_change_price: {a_ind_change_price:.2f}")
+            return a_ind_change_price, a_ind_reason
 
         return 0, StoplossReason.Empty
