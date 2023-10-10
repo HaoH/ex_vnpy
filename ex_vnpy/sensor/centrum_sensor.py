@@ -15,11 +15,14 @@ class CentrumSensor(object):
     LastPivot(L)： 最后一个正式的pivot，由CandidatePivot转正而来
     CandidatePivot(C)：备选的pivot，符合分型条件、跟LastPivot分型相反。必须要等到出现新的CandidatePivot，上一个CandidatePivot才能转正
     BackupPivot(B)： 在寻找new CandidatePivot的过程中，发现的比Last Pivot更合适的Pivot，将在下一个new CandidatePivot确定的时候，取代原来的LastPivot
+    IgnorePivot(I): 在寻找new CandidatePivot的过程中，发现的跟当前CandidatePivot相同分型，但是应该忽略的pivot（底分型价格高于当前candidate，顶分型价格低于当前candidate）
 
-    e.g.下图所示，发现B比L高，可能更适合做L；继续探测，出现new C，此时B转正为L，原来的L取消资格
-                     ^B
-      ^L-----      /   \
-    /        \/C---     \/new C
+    e.g.下图所示，发现B比L高，同时B和C1之间bar不满足数量要求，B可能更适合做L；继续探测，出现C2，此时B转正为L，原来的L取消资格
+                     ^B(替代L)
+                   /  \      ^
+      ^L-----    /     \   /  \/----
+    /        \/         \/     I
+             C1         C2
 
     """
 
@@ -54,7 +57,13 @@ class CentrumSensor(object):
         self.last_before_bar_high: float = 0.0  # 上上个有效的bar的high
         self.last_before_bar_low: float = 0.0  # 上上个有效的bar的low
 
-        self.pivot_df: DataFrame = None     # pivot,high,low, 存储顶底分型的high/low, pivot=1 & -1表示确定的顶底分型， 2 & -2 表示candidate pivot, 3 & -3 表示历史的candidate pivot
+        # pivot,high,low, 存储顶底分型的high/low, pivot值的含义
+        # 1/-1 表示确定的顶底分型
+        # 2/-2 表示candidate pivot 顶底分型
+        # 3/-3 表示历史的candidate pivot 顶底分型
+        # 4/-4 表示backup pivot 顶底分型
+        # 5/-5 表示ignore pivot 顶底分型
+        self.pivot_df: DataFrame = None
         self.inited: bool = False
 
         self.source_df: DataFrame = None
@@ -103,6 +112,7 @@ class CentrumSensor(object):
         yesterday_index = source_df.index[-2] if len(source_df) > 1 else source_df.index[-1]
         is_contain = False
 
+        # TODO: 包含关系需要考虑实体柱的位置，如果后一个实体柱完全处于前一个的影线区域，则不算做包含？ 2018-11-27   603501
         # 处理包含关系
         if self.enableContain and ((high >= last_high and low <= last_low) or (high <= last_high and low >= last_low)):
             # 短期上升
@@ -152,24 +162,31 @@ class CentrumSensor(object):
                             self.pivot_df.loc[self.last_pivot_index, 'pivot'] = self.last_pivot_type * 3
                             self.reset_last_pivot_using_backup()
                             self.pivot_df.loc[self.last_pivot_index] = Series(data=[self.last_backup_pivot_type, self.last_backup_pivot_high, self.last_backup_pivot_low], index=['pivot', 'high', 'low'])
+                    else:
+                        # 当前是IgnorePivot，仅做记录，5/-5
+                        self.pivot_df.loc[yesterday_index] = Series(data=[new_candidate_pivot_type * 5, last_high, last_low], index=['pivot', 'high', 'low'])
 
                 # 连续不同的两个分型，需要看是否符合bar的数量要求
-                elif self.last_candidate_pivot_type + new_candidate_pivot_type == 0 and self.last_candidate_pivot_bars >= self.valid_bars:
-                    # self.pivot_s.loc[self.last_candidate_pivot_index] = self.last_candidate_pivot_type
-                    # 更新新的CandidatePivot作为LastPivot
-                    self.update_last_pivot_using_candidate()
-                    self.pivot_df.loc[self.last_pivot_index] = Series(data=[self.last_pivot_type, self.last_pivot_high, self.last_pivot_low], index=['pivot', 'high', 'low'])
+                elif self.last_candidate_pivot_type + new_candidate_pivot_type == 0:
+                    if self.last_candidate_pivot_bars >= self.valid_bars:
+                        # self.pivot_s.loc[self.last_candidate_pivot_index] = self.last_candidate_pivot_type
+                        # 更新新的CandidatePivot作为LastPivot
+                        self.update_last_pivot_using_candidate()
+                        self.pivot_df.loc[self.last_pivot_index] = Series(data=[self.last_pivot_type, self.last_pivot_high, self.last_pivot_low], index=['pivot', 'high', 'low'])
 
-                    self.update_candidate_pivot(yesterday_index, last_high, last_low, new_candidate_pivot_type)
-                    self.pivot_df.loc[self.last_candidate_pivot_index] = Series(data=[self.last_candidate_pivot_type * 2, self.last_candidate_pivot_high, self.last_candidate_pivot_low], index=['pivot', 'high', 'low'])
-                    # self.pLastCandidateLine = line(na)
-                    # set_last_candidate_line(line(na))
+                        self.update_candidate_pivot(yesterday_index, last_high, last_low, new_candidate_pivot_type)
+                        self.pivot_df.loc[self.last_candidate_pivot_index] = Series(data=[self.last_candidate_pivot_type * 2, self.last_candidate_pivot_high, self.last_candidate_pivot_low], index=['pivot', 'high', 'low'])
+                    else:
+                        # 当前是IgnorePivot，仅做记录，5/-5
+                        self.pivot_df.loc[yesterday_index] = Series(data=[new_candidate_pivot_type * 5, last_high, last_low], index=['pivot', 'high', 'low'])
 
                 # 候选分型尚未成立，新的分型跟上一个确定分型相同，却有更低的低点或者更高的高点，则更新上一个确定分型
                 elif self.last_pivot_type == new_candidate_pivot_type and self.last_candidate_pivot_bars < self.valid_bars:
                     if (new_candidate_pivot_type == 1 and last_high > self.last_pivot_high) or (
                             new_candidate_pivot_type == -1 and last_low < self.last_pivot_low):
                         self.update_last_backup_pivot(yesterday_index, last_high, last_low, new_candidate_pivot_type)
+                        # 当前是backup pivot, 仅做记录, 4/-4
+                        self.pivot_df.loc[self.last_backup_pivot_index] = Series(data=[self.last_backup_pivot_type * 4, self.last_backup_pivot_high, self.last_backup_pivot_low], index=['pivot', 'high', 'low'])
 
         if not is_contain:
             self.last_before_bar_high = last_high
