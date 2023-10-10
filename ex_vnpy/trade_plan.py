@@ -8,6 +8,7 @@ from ex_vnpy.manager.source_manager import SourceManager
 from ex_vnpy.signal import SignalDetector, Signal
 from ex_vnpy.utility import has_large_drop, find_real_test_days, is_speed_low, has_long_shadow_up
 from vnpy.trader.constant import Direction
+from vnpy.trader.utility import round_to
 from vnpy_ctastrategy import StopOrder
 from vnpy_ctastrategy.base import StopOrderStatus
 
@@ -117,6 +118,8 @@ class TradePlan:
     # 新增一种类型，止损数据，把止损价格变动原因也放进来
     stoploss_records: List[StoplossRecord] = []
 
+    price_tick = 0.01
+
     def __init__(self, entry_trigger_price, entry_buy_price, volume, plan_date, strength, **kwargs):
         """
         stoploss_price，可以通过kwargs参数传递
@@ -178,7 +181,7 @@ class TradePlan:
         self.logger.debug(f"[TP][SetOrder][Exit] limit_order_id: {self.exit_order_id}, plan_date: {self.plan_date.strftime('%Y-%m-%d')}, status: {self.status}, stoploss_price: {self.stoploss_price:.2f}")
 
     def set_stoploss_price(self, new_stoploss_price: float):
-        self.stoploss_price = new_stoploss_price
+        self.stoploss_price = round_to(new_stoploss_price, self.price_tick)
 
     def set_detectors(self, detectors: List[SignalDetector]):
         self.detectors = detectors
@@ -220,7 +223,7 @@ class TradePlan:
                 stoploss_price = low
                 self.logger.debug(f"[PM][SLPriceAdjust] date: {sm.last_date.strftime('%Y-%m-%d')}, stoploss_price: {stoploss_price:.2f}")
 
-        self.stoploss_price = stoploss_price
+        self.stoploss_price = round_to(stoploss_price, self.price_tick)
         return stoploss_price
 
     def update_stoploss_price(self, sm: SourceManager):
@@ -233,15 +236,16 @@ class TradePlan:
 
         if len(valid_sl_prices) > 0:
             # 取所有策略的最低止损价格
-            new_sl_price = min(valid_sl_prices)
+            new_sl_price = round_to(min(valid_sl_prices), self.price_tick)
             reason = StoplossReason.Detector
             self.logger.debug(f"[TP][NewSL][{reason.name}] date: {sm.last_date.strftime('%Y-%m-%d')}, new_stoploss: {new_sl_price:.2f}, change_reason: {reason.name}, current_stoploss: {self.stoploss_price:.2f}")
 
         # 计算止损策略的止损价
         ind_change_price, ind_reason = self.get_all_stoploss_prices(sm)
-        if ind_change_price > new_sl_price:
+        round_ind_change_price =round_to(ind_change_price, self.price_tick)
+        if round_ind_change_price > new_sl_price:
             self.logger.debug(f"[TP][NewSL][Ind][{ind_reason.name}] date: {sm.last_date.strftime('%Y-%m-%d')}, stoploss: {new_sl_price:.2f} -> {ind_change_price:.2f}, change_reason: {ind_reason.name}, current_stoploss: {self.stoploss_price:.2f}")
-            new_sl_price = ind_change_price
+            new_sl_price = round_ind_change_price
             reason = ind_reason
 
         # 止损价格只能上升，不能下降
@@ -260,7 +264,7 @@ class TradePlan:
         """
         用于手动调整止损价格，比如说，engine在成交时遇到跳水情况，实际止损价格跟预计不一样
         """
-        self.stoploss_price = stoploss_price
+        self.stoploss_price = round_to(stoploss_price, self.price_tick)
         self.stoploss_price_date = stoploss_price_date
         self.stoploss_records.append(StoplossRecord(stoploss_price, stoploss_price_date, reason))
 

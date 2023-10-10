@@ -129,6 +129,7 @@ class OrderManager(object):
         :return:
         """
 
+        trigger_price: float = round_to(trigger_price, self.price_tick)
         price: float = round_to(price, self.price_tick)
         self.stop_order_count += 1
 

@@ -139,7 +139,7 @@ class PositionManager(object):
         max_volume = floor(available_capital * 0.999 / (self.unit_size * buy_price))
 
         detectors = [s.detector for s in signals]
-        tp = TradePlan(trigger_price, buy_price, max_volume, sm.today, total_signal_strength, detectors=detectors, stoploss_rate=stoploss_rate, stoploss_settings=self.stoploss_settings)
+        tp = TradePlan(trigger_price, buy_price, max_volume, sm.today, total_signal_strength, detectors=detectors, stoploss_rate=stoploss_rate, stoploss_settings=self.stoploss_settings, price_tick=self.price_tick)
         sl_price = tp.init_stoploss_price(sm, signals)
 
         logger.info(f"[PM][NewTP] date: {sm.last_date.strftime('%Y-%m-%d')}, trigger_price: {trigger_price:.2f}, buy_price: {buy_price:.2f}, stoploss_price: {sl_price:.2f}, volume: {max_volume}, plan_capital: {available_capital:.2f}, strength: {total_signal_strength}")
