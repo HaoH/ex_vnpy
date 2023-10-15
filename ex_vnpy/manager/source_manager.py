@@ -336,32 +336,32 @@ class SourceManager(object):
 
     @property
     def latest_daily_bar(self) -> Series:
-        if self.daily_df is None:
-            return None
-
-        return self.data_df.iloc[-1, :]
+        return self.prior_bar(Interval.DAILY, 1)
 
     @property
     def latest_week_bar(self) -> Series:
-        if self.weekly_df is None:
-            return None
-
-        return self.weekly_df.iloc[-1, :]
+        return self.prior_bar(Interval.WEEKLY, 1)
 
     @property
-    def last_bar(self) -> Series:
+    def prior_daily_bar(self) -> Series:
         """
         当日/周的上一日/周
-        :return:
         """
-        source_df = self.daily_df if self.interval == Interval.DAILY else self.weekly_df
-        if source_df is None:
+        return self.prior_bar(Interval.DAILY, 2)
+
+    @property
+    def prior_weekly_bar(self) -> Series:
+        """
+        当日/周的上一日/周
+        """
+        return self.prior_bar(Interval.WEEKLY, 2)
+
+    def prior_bar(self, interval: Interval, bar_count: int) -> Series:
+        source_df = self.daily_df if interval == Interval.DAILY else self.weekly_df
+        if source_df is None or len(source_df) < bar_count:
             return None
 
-        if len(source_df) < 2:
-            return source_df.iloc[-1, :]
-
-        return source_df.iloc[-2, :]
+        return source_df.iloc[-1 * bar_count, :]
 
     @property
     def is_up(self) -> bool:

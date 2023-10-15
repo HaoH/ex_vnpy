@@ -253,6 +253,12 @@ class TradePlan:
         _, tw, _ = sm.today.isocalendar()
         # 对于当周的数据，由于周线未定型，允许向下调整止损价；对于非当周数据，只允许向上调整
         if (lw == tw and self.entry_buy_price > self.stoploss_price) or new_sl_price > self.stoploss_price:
+            # TODO: 向下调整止损位，必须要是同一周、同一个策略触发的价格
+            if new_sl_price < self.stoploss_price and self.stoploss_records:
+                if reason != self.stoploss_records[-1].change_reason:
+                    self.logger.debug(f"[TP][SLPriceUpdate][Drop] not the same strategy. date: {sm.last_date.strftime('%Y-%m-%d')},   stoploss_price: {self.stoploss_price:.2f} -> {new_sl_price:.2f}, reason: {self.stoploss_records[-1].change_reason} -> {reason}")
+                    return
+
             self.logger.debug(f"[TP][SLPriceUpdate] date: {sm.last_date.strftime('%Y-%m-%d')},   stoploss_price: {self.stoploss_price:.2f} -> {new_sl_price:.2f}")
             if self.stoploss_price != new_sl_price:
                 self.stoploss_records.append(StoplossRecord(new_sl_price, sm.today, reason))
@@ -375,7 +381,7 @@ class TradePlan:
             # 入场的前N天，根据macd hist的变动进行止损
 
             bar = sm.latest_daily_bar   # 当日
-            last_bar = sm.last_bar      # 昨日
+            last_bar = sm.prior_daily_bar      # 昨日
 
             ind_values = sm.get_indicator_value(ind_setting["name"], ind_setting["signals"])
             test_days, drop_days = ind_setting["test_days"]
@@ -396,7 +402,7 @@ class TradePlan:
             # test_days = self.stoploss_ind["entry_low_speed"]["test_days"][0]
             # if sm.daily_df.index[-1 * test_days] >= self.entry_date: # 已经经过了入场试炼
             bar = sm.latest_daily_bar   # 当日
-            last_bar = sm.last_bar      # 昨日
+            last_bar = sm.prior_daily_bar      # 昨日
             ind_values = sm.get_indicator_value(ind_setting["name"], ind_setting["signals"])
 
             # 上影线的策略优先级更高
@@ -422,7 +428,7 @@ class TradePlan:
             # if sm.daily_df.index[-1 * test_days] >= self.entry_date: # 已经经过了入场试炼
 
             bar = sm.latest_daily_bar   # 当日
-            last_bar = sm.last_bar      # 昨日
+            last_bar = sm.prior_daily_bar      # 昨日
             ind_values = sm.get_indicator_value(ind_setting["name"], ind_setting["signals"])
             if has_large_drop(bar, last_bar, ind_values, ind_setting["factor"]):
                 # a_ind_change_price = bar["low"] * 0.98 - 0.01
@@ -431,7 +437,7 @@ class TradePlan:
 
         elif stoploss_type == "movement_low_speed":
             bar = sm.latest_daily_bar   # 当日
-            last_bar = sm.last_bar      # 昨日
+            last_bar = sm.prior_daily_bar      # 昨日
 
             ind_values = sm.get_indicator_value(ind_setting["name"], ind_setting["signals"])
             test_days = self.stoploss_ind["entry_low_speed"]["test_days"][0]
@@ -574,6 +580,8 @@ class TradePlan:
                 a_ind_change_price = recent_low * 0.99 - 0.01
 
             a_ind_reason = StoplossReason.LostSpeed
+
+            self.logger.debug(f"[TP][EntryLowSpeed] date: {sm.today.strftime('%Y-%m-%d')}, low: {bar['low']:.2f}, a_ind_change_price: {a_ind_change_price:.2f}")
             return a_ind_change_price, a_ind_reason
 
         return 0, StoplossReason.Empty
@@ -584,30 +592,42 @@ class TradePlan:
         # if sm.daily_df.index[-1 * test_days] >= self.entry_date: # 已经经过了入场试炼
 
         bar = sm.latest_daily_bar   # 当日
-        last_bar = sm.last_bar      # 昨日
+        last_bar = sm.prior_daily_bar      # 昨日
 
         a_ind_change_price = self.stoploss_price
         a_ind_reason = StoplossReason.Empty
 
+        asx_setting = settings["asx"]
+        si_m = sm.get_indicator_value(asx_setting["name"], asx_setting["signals"])
+
         ind_setting = settings["atr"]
         atr = sm.get_indicator_value(ind_setting["name"], ind_setting["signals"])
+        # TODO: 优化 largeup 策略，确保能够拿到一个大幅上涨的利润，同时在规避假突破方面，尽量优化
         # 上影线的策略优先级更高
-        if not has_large_drop(bar, last_bar, atr, settings["up_factor"], False):
-            close_up = bar["close"] - last_bar["close"]
-            atr_y = atr[-2]
-            if close_up > 0 and bar["close"] >= bar["open"]:
-                if close_up >= atr_y * 1.3:
-                    a_ind_change_price = min(bar["open"], bar["close"]) - 0.01
-                    a_ind_reason = StoplossReason.LevelLargeUp
-                elif close_up >= atr_y * 1:
-                    a_ind_change_price = min(bar["open"], bar["close"]) - 0.01
-                    a_ind_reason = StoplossReason.LevelLargeUp
-                elif close_up >= atr_y * 0.7:
-                    a_ind_reason = StoplossReason.LevelLargeUp
-                    a_ind_change_price = bar["low"] * 0.99 - 0.01
+        # if not has_large_drop(bar, last_bar, atr, settings["up_factor"], False):
+        close_up = bar["close"] - last_bar["close"]
+        atr_y = atr[-1]
+        si_m_y = si_m[-1]
+        # if close_up > 0 and bar["close"] >= bar["open"]:
+        if close_up > 0:
+            # if close_up >= atr_y * 2:
+            #     a_ind_change_price = (bar["open"] + bar["close"]) / 2 - self.price_tick
+            #     a_ind_reason = StoplossReason.LevelLargeUp
+            # elif close_up >= atr_y * 0.7:
+            if close_up >= atr_y * 0.7:
+                a_ind_change_price = min(bar["open"], bar["close"]) - self.price_tick
+                a_ind_reason = StoplossReason.LevelLargeUp
+            # elif close_up >= atr_y * 0.7:
+            #     a_ind_change_price = min(bar["open"], bar["close"]) - 0.01
+            #     a_ind_reason = StoplossReason.LevelLargeUp
+            # TODO: max(3% & 0.4 * atr)?
+            elif close_up >= atr_y * 0.4:
+                a_ind_reason = StoplossReason.LevelLargeUp
+                # a_ind_change_price = bar["low"] * 0.99 - 0.01
+                a_ind_change_price = bar["low"] - atr_y * si_m_y / 100 - self.price_tick
 
-                self.logger.debug(f"[TP][LargeUpAtr] date: {sm.today.strftime('%Y-%m-%d')}, close: {last_bar['close']:.2f} -> {bar['close']:.2f}, atr_y: {atr_y:.2f}, close_up/atr_y: {close_up/atr_y:.2f}, a_ind_change_price: {a_ind_change_price:.2f}")
-                # TODO: 考虑周线上涨幅度
+            self.logger.debug(f"[TP][LargeUpAtr] date: {sm.today.strftime('%Y-%m-%d')}, close: {last_bar['close']:.2f} -> {bar['close']:.2f}, atr_y: {atr_y:.2f}, close_up/atr_y: {close_up/atr_y:.2f}, a_ind_change_price: {a_ind_change_price:.2f}")
+            # TODO: 考虑周线上涨幅度
         return a_ind_change_price, a_ind_reason
 
     def get_stoploss_price_large_drop_atr(self, sm: SourceManager, settings: dict) -> Tuple[float, StoplossReason]:
@@ -618,7 +638,7 @@ class TradePlan:
         # if sm.daily_df.index[-1 * test_days] >= self.entry_date: # 已经经过了入场试炼
 
         bar = sm.latest_daily_bar   # 当日
-        last_bar = sm.last_bar      # 昨日
+        last_bar = sm.prior_daily_bar      # 昨日
         ind_setting = settings["atr"]
         atr = sm.get_indicator_value(ind_setting["name"], ind_setting["signals"])
         if has_large_drop(bar, last_bar, atr, settings["drop_factor"]):
@@ -631,7 +651,7 @@ class TradePlan:
 
     def get_stoploss_price_movement_low_speed(self, sm: SourceManager, settings: dict) -> Tuple[float, StoplossReason]:
         bar = sm.latest_daily_bar   # 当日
-        last_bar = sm.last_bar      # 昨日
+        last_bar = sm.prior_daily_bar      # 昨日
 
         ind_setting = settings["adx"]
         ind_values = sm.get_indicator_value(ind_setting["name"], ind_setting["signals"])
@@ -647,7 +667,7 @@ class TradePlan:
 
     def get_stoploss_price_top_pivot(self, sm: SourceManager, settings: dict) -> Tuple[float, StoplossReason]:
         bar = sm.latest_daily_bar   # 当日
-        last_bar = sm.last_bar      # 昨日
+        last_bar = sm.prior_daily_bar      # 昨日
 
         adx_setting = settings["adx"]
         adx_values = sm.get_indicator_value(adx_setting["name"], adx_setting["signals"])
