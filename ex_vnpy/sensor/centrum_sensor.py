@@ -88,9 +88,14 @@ class CentrumSensor(object):
         }
         self.pivot_df = DataFrame(data=0, columns=list(column_data_types.keys()), index=source_df.index).astype(column_data_types)
         self.pivot_df['ptype'] = self.ptype
-        self.last_bar_high = source_df.high.iloc[0]
-        self.last_bar_low = source_df.low.iloc[0]
-        # self.last_bar_index = source_df.index.iloc[0]
+        if self.ptype == "HL":
+            self.last_bar_high = source_df.high.iloc[0]
+            self.last_bar_low = source_df.low.iloc[0]
+            # self.last_bar_index = source_df.index.iloc[0]
+        else:
+            last_s = source_df.iloc[0]
+            self.last_bar_high = max(last_s["open"], last_s["close"])
+            self.last_bar_low = min(last_s["open"], last_s["close"])
 
         for i in range(1, len(source_df)):      # 从第二个bar开始，尤其是处理周线数据时，做好初始化工作
             self.detect_next_pivot(source_df.iloc[:i+1])
@@ -117,8 +122,14 @@ class CentrumSensor(object):
     def detect_next_pivot(self, source_df: DataFrame):
         last_high = self.last_bar_high
         last_low = self.last_bar_low
-        high = current_high = source_df.high.iloc[-1]
-        low = current_low = source_df.low.iloc[-1]
+
+        last_s = source_df.iloc[-1]
+        if self.ptype == "HL":
+            high = current_high = last_s["high"]
+            low = current_low = last_s["low"]
+        else:
+            high = current_high = max(last_s["open"], last_s["close"])
+            low = current_low = min(last_s["open"], last_s["close"])
 
         yesterday_index = source_df.index[-2] if len(source_df) > 1 else source_df.index[-1]
         today_index = source_df.index[-1]
