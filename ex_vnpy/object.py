@@ -1,22 +1,30 @@
-import inspect
 from dataclasses import dataclass
 from datetime import datetime
-from enum import Enum
 
 from vnpy.trader.constant import Exchange, Market
 from vnpy.trader.object import BaseData
 
-
 @dataclass
-class BasicStockData(BaseData):
-    """
-    """
-
+class BasicSymbolData:
     symbol: str
     name: str
     exchange: Exchange
     market: Market
+    symbol_type: str
 
+    def __post_init__(self):
+        """"""
+        if type(self.exchange) == str:
+            self.exchange = Exchange(self.exchange)
+        if type(self.market) == str:
+            self.market = Market(self.market)
+        self.vt_symbol = f"{self.symbol}.{self.exchange.value}"
+
+
+@dataclass
+class BasicStockData(BasicSymbolData):
+    """
+    """
     industry_first: str
     industry_second: str
     industry_third: str
@@ -40,10 +48,20 @@ class BasicStockData(BaseData):
     shares_circ_a: float = 0
     shares_non_circ_a: float = 0
 
-    def __post_init__(self):
-        """"""
-        if type(self.exchange) == str:
-            self.exchange = Exchange(self.exchange)
-        if type(self.market) == str:
-            self.market = Market(self.market)
-        self.vt_symbol = f"{self.symbol}.{self.exchange.value}"
+    symbol_type = "CS"
+
+
+@dataclass
+class BasicIndexData(BasicSymbolData):
+    full_name: str
+    volume: int
+    turnover: int
+
+    publish_date: datetime = None
+    exit_date: datetime = None
+    has_price: bool = True
+    has_weight: bool = True
+    has_components: bool = True
+    is_core_index: bool = False
+
+    symbol_type = "INDX"
