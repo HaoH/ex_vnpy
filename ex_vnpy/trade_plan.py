@@ -504,7 +504,10 @@ class TradePlan:
         ind_setting = settings["impulse"]
         ind_values = sm.get_indicator_value(ind_setting["name"], ind_setting["signals"])
         if ind_values and len(ind_values) > 3 and sum(ind_values[-3:-1]) <= -2:
-            a_ind_change_price = sm.recent_week_low(2, last_contained=False)
+            # 取最近2周低点(不包含当周)，可能会导致止损价比当前价格还高。比如
+            # 600111(2022.4.27), 002444(2019.2.1)
+            # a_ind_change_price = sm.recent_week_low(2, last_contained=False)
+            a_ind_change_price = sm.recent_week_low(2)
             a_ind_reason = StoplossReason.Impulse
             return a_ind_change_price, a_ind_reason
         return 0, StoplossReason.Empty
