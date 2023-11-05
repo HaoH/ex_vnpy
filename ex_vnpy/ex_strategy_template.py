@@ -28,6 +28,7 @@ class ExStrategyTemplate(CtaTemplate):
     slippage = 0.005  # 交易滑点
     risk_free = 0
     annual_days = 240
+    entry_order_type = 'LIMIT'
 
     ta = []
     stoploss_ind = {}

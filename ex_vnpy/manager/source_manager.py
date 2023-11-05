@@ -75,6 +75,19 @@ class SourceManager(object):
         if self.count >= self.size:
             self.inited = True
 
+    def init_heikin_ashi_candle_df(self, ha_df: DataFrame):
+        # 计算Heikin-Ashi蜡烛图的值
+        ha_df['ha_close'] = (ha_df['open'] + ha_df['high'] + ha_df['low'] + ha_df['close']) / 4
+        ha_df['ha_open'] = ha_df['open']
+        ha_open_index = ha_df.columns.get_loc('ha_open')
+        # ha_df.iat[0, ha_open_index] = ha_df.iloc[0]['open']
+        for i in range(1, len(ha_df)):
+            ha_df.iat[i, ha_open_index] = (ha_df.iloc[i-1]['ha_open'] + ha_df.iloc[i-1]['ha_close']) / 2
+
+        ha_df['ha_high'] = ha_df[['high', 'ha_open', 'ha_close']].max(axis=1)
+        ha_df['ha_low'] = ha_df[['low', 'ha_open', 'ha_close']].min(axis=1)
+        return ha_df
+
     def init_data_df(self, bars: list[BarData]):
         init_data = copy.deepcopy(bars)
         for x in init_data:
@@ -83,6 +96,9 @@ class SourceManager(object):
         self.data_df.rename(
             columns={'open_price': 'open', 'high_price': 'high', 'low_price': 'low', 'close_price': 'close'},
             inplace=True)
+        # TODO: 增加Heikin Ashi蜡烛图信息
+        self.init_heikin_ashi_candle_df(self.data_df)
+
         self.data_df.index = pd.DatetimeIndex(self.data_df['datetime'])
         self.daily_df = self.data_df  # 先不做tick到daily的聚合
 
@@ -128,6 +144,14 @@ class SourceManager(object):
             new_dict['high'] = new_dict['high_price']
             new_dict['low'] = new_dict['low_price']
             new_dict['close'] = new_dict['close_price']
+
+            # add heikin ashi
+            new_dict['ha_close'] = (new_dict['open'] + new_dict['high'] + new_dict['low'] + new_dict['close']) / 4
+            last_bar = self.data_df.iloc[-1]
+            new_dict['ha_open'] = (last_bar['ha_open'] + last_bar['ha_close']) / 2
+            new_dict['ha_high'] = max(new_dict['high'], new_dict['ha_open'], new_dict['ha_close'])
+            new_dict['ha_low'] = min(new_dict['low'], new_dict['ha_open'], new_dict['ha_close'])
+
             nt = pd.to_datetime(bar.datetime.isoformat())
             self.data_df.loc[nt, :] = new_dict
 
@@ -174,6 +198,7 @@ class SourceManager(object):
 
         if self.weekly_df is None:
             self.weekly_df = self.resample_to_week_data(self.daily_df)
+            self.init_heikin_ashi_candle_df(self.weekly_df)
         else:
             last_week_dt = self.weekly_df.index[-1]
             last_bar = self.daily_df.iloc[-1]
@@ -181,15 +206,26 @@ class SourceManager(object):
             _, new_week, _ = (last_bar.name - timedelta(days=last_bar.name.weekday())).isocalendar()
             if last_week == new_week:
                 last_week_s = self.weekly_df.iloc[-1].copy()
+
                 last_week_s["high"] = max(last_week_s["high"], last_bar["high"])
                 last_week_s["low"] = min(last_week_s["low"], last_bar["low"])
                 last_week_s["close"] = last_bar["close"]
                 last_week_s["volume"] += last_bar["volume"]
                 last_week_s["turnover"] += last_bar["turnover"]
+
+                last_week_s["ha_close"] = (last_week_s['open'] + last_week_s['high'] + last_week_s['low'] + last_week_s['close']) / 4
+                last_week_s["ha_high"] = max(last_week_s["high"], last_week_s["ha_open"], last_week_s["ha_close"])
+                last_week_s["ha_low"] = min(last_week_s["low"], last_week_s["ha_open"], last_week_s["ha_close"])
+
                 self.weekly_df.loc[last_week_s.name] = last_week_s
             else:
-                new_index = last_bar.name - timedelta(days=last_bar.name.weekday()) + timedelta(days=4)
-                self.weekly_df.loc[new_index] = last_bar
+                last_bar_s = self.daily_df.iloc[-1].copy()
+                new_index = last_bar_s.name - timedelta(days=last_bar_s.name.weekday()) + timedelta(days=4)
+                last_bar_s['ha_close'] = (last_bar_s['open'] + last_bar_s['high'] + last_bar_s['low'] + last_bar_s['close']) / 4
+                last_bar_s['ha_open'] = (self.weekly_df.iloc[-1]['ha_open'] + self.weekly_df.iloc[-1]['ha_close']) / 2
+                last_bar_s['ha_high'] = max(last_bar_s['high'], last_bar_s['ha_open'], last_bar_s['ha_close'])
+                last_bar_s['ha_low'] = min(last_bar_s['low'], last_bar_s['ha_open'], last_bar_s['ha_close'])
+                self.weekly_df.loc[new_index] = last_bar_s
 
     def recent_week_high(self, recent_weeks: int = 7, last_contained: bool = True) -> float:
         return self.recent_high(Interval.WEEKLY, recent_weeks, last_contained)

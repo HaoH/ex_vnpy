@@ -44,6 +44,7 @@ class StoplossReason(Enum):
     LargeDrop = 13     # 上影线较长
     LostMovement = 14   # adx动能下降
     TopPivot = 15       # 顶分型止损
+    HALow = 16          # Heikin-Ashi low
 
 
 @dataclass
@@ -331,6 +332,8 @@ class TradePlan:
             a_ind_change_price, a_ind_reason = self.get_stoploss_price_movement_low_speed(sm, ind_setting)
         elif stoploss_type == "top_pivot":
             a_ind_change_price, a_ind_reason = self.get_stoploss_price_top_pivot(sm, ind_setting)
+        elif stoploss_type == "ha_low":
+            a_ind_change_price, a_ind_reason = self.get_stoploss_price_ha_low(sm, ind_setting)
 
         return a_ind_change_price, a_ind_reason
 
@@ -689,3 +692,18 @@ class TradePlan:
             return a_ind_change_price, a_ind_reason
 
         return 0, StoplossReason.Empty
+
+    def get_stoploss_price_ha_low(self, sm: SourceManager, settings: dict) -> Tuple[float, StoplossReason]:
+        bar = sm.latest_daily_bar   # 当日
+        last_bar = sm.prior_daily_bar      # 昨日
+
+        # adx_setting = settings["adx"]
+        # adx_values = sm.get_indicator_value(adx_setting["name"], adx_setting["signals"])
+        #
+        # atr_setting = settings["atr"]
+        # atr_values = sm.get_indicator_value(atr_setting["name"], atr_setting["signals"])
+
+        a_ind_change_price = bar["ha_low"] - self.price_tick
+        a_ind_reason = StoplossReason.HALow
+        self.logger.debug(f"[TP][HALow] date: {sm.today.strftime('%Y-%m-%d')}, ha_low: {last_bar['ha_low']:.2f} -> {bar['ha_low']:.2f}, low: {last_bar['low']:.2f} -> {bar['low']:.2f}, a_ind_change_price: {a_ind_change_price:.2f}")
+        return a_ind_change_price, a_ind_reason
