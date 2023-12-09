@@ -1,4 +1,5 @@
 import logging
+import talib
 from dataclasses import dataclass, fields
 from datetime import datetime
 from enum import Enum
@@ -274,7 +275,6 @@ class TradePlan:
         self.stoploss_price = round_to(stoploss_price, self.price_tick)
         self.stoploss_price_date = stoploss_price_date
         self.stoploss_records.append(StoplossRecord(stoploss_price, stoploss_price_date, reason))
-
 
     def get_all_stoploss_prices(self, sm: SourceManager) -> Tuple[float, StoplossReason]:
         # 根据指标的变化，调整止损位
