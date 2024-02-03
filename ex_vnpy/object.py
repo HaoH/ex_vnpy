@@ -6,11 +6,13 @@ from vnpy.trader.object import BaseData
 
 @dataclass
 class BasicSymbolData:
+    id: int
     symbol: str
     name: str
     exchange: Exchange
     market: Market
-    symbol_type: str
+    type: str
+    status: str
 
     def __post_init__(self):
         """"""
@@ -43,12 +45,12 @@ class BasicStockData(BasicSymbolData):
     index_zz1000: bool = False
     index_normal: bool = False
 
-    shares_total: float = 0
-    shares_total_a: float = 0
-    shares_circ_a: float = 0
-    shares_non_circ_a: float = 0
+    # shares_total: float = 0
+    # shares_total_a: float = 0
+    # shares_circ_a: float = 0
+    # shares_non_circ_a: float = 0
 
-    symbol_type = "CS"
+    # symbol_type = "CS"
 
 
 @dataclass
@@ -56,6 +58,7 @@ class BasicIndexData(BasicSymbolData):
     full_name: str
     volume: int
     turnover: int
+    update_dt: datetime
 
     publish_date: datetime = None
     exit_date: datetime = None
@@ -64,4 +67,5 @@ class BasicIndexData(BasicSymbolData):
     has_components: bool = True
     is_core_index: bool = False
 
-    symbol_type = "INDX"
+
+    # symbol_type = "INDX"
