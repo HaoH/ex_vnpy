@@ -50,8 +50,6 @@ class BasicStockData(BasicSymbolData):
     # shares_circ_a: float = 0
     # shares_non_circ_a: float = 0
 
-    # symbol_type = "CS"
-
 
 @dataclass
 class BasicIndexData(BasicSymbolData):
