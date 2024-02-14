@@ -1,5 +1,6 @@
 import copy
 import logging
+import traceback
 from dataclasses import is_dataclass
 from datetime import datetime, timedelta
 from typing import Any, Dict, List
@@ -129,8 +130,9 @@ class SourceManager(object):
                 input_values = OHLCVFactory.from_dict(data)
             try:
                 ind.initialize(input_values=input_values)
-            except Exception:
-                logger.error("[SM] indicator initialize error!")
+            except Exception as e:
+                logger.error(f"[SM] indicator initialize error! {e}")
+                traceback.print_exc()
 
     def update_bar(self, bar: BarData) -> None:
         """
