@@ -5,7 +5,7 @@ from vnpy.trader.constant import Exchange, Market
 from vnpy.trader.object import BaseData
 
 @dataclass
-class BasicSymbolData:
+class BasicSymbolData(BaseData):
     id: int
     symbol: str
     name: str
