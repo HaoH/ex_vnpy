@@ -4,6 +4,10 @@ from .PRI import PRI as PRI
 from .ChangePct import ChangePct as ChangePct
 from .ContUp import ContUp as ContUp
 from .MaxUpDays import MaxUpDays as MaxUpDays
+from .CFNI import CFNI as CFNI
+from .CFNIDays import CFNIDays as CFNIDays
+from .CFNIS import CFNIS as CFNIS
+from .CFNISN import CFNISN as CFNISN
 
 __all__ = (
     "Impulse",
@@ -11,5 +15,9 @@ __all__ = (
     "PRI",
     "ChangePct",
     "ContUp",
-    "MaxUpDays"
+    "MaxUpDays",
+    "CFNI",
+    "CFNIDays",
+    "CFNIS",
+    "CFNISN"
 )
