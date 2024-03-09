@@ -1,7 +1,7 @@
 from typing import List, Any
 
 from talipp.indicators import MACD, EMA
-from talipp.indicators.Indicator import Indicator, ValueExtractorType
+from talipp.indicators.Indicator import Indicator
 
 
 class Impulse(Indicator):
@@ -14,8 +14,8 @@ class Impulse(Indicator):
     -1: red color
     """
 
-    def __init__(self, fast_period: int, slow_period: int, signal_period: int, ema_period: int, input_values: List[float] = None, input_indicator: Indicator = None, value_extractor: ValueExtractorType = None):
-        super().__init__(value_extractor = value_extractor)
+    def __init__(self, fast_period: int, slow_period: int, signal_period: int, ema_period: int, input_values: List[float] = None, input_indicator: Indicator = None):
+        super().__init__()
 
         self.macd = MACD(fast_period, slow_period, signal_period)
         self.ema = EMA(ema_period)
