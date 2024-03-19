@@ -1,4 +1,6 @@
 from typing import List, Any
+
+from talipp.indicator_util import has_valid_values
 from talipp.indicators.Indicator import Indicator
 from talipp.ohlcv import OHLCV
 
@@ -16,7 +18,7 @@ class MaxUpDays(Indicator):
         self.initialize(input_values)
 
     def _calculate_new_value(self) -> Any:
-        if len(self.input_values) < 2:
+        if not has_valid_values(self.input_values, 2):
             self.break_days.append(1)
             return 0
 

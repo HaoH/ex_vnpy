@@ -8,19 +8,19 @@ from typing import Any, Dict, List
 import pandas as pd
 from pandas import DataFrame, Series
 
+from talipp.indicator_util import has_valid_values, composite_to_lists, valid_values_length
 from vnpy.trader.constant import Interval, Exchange
+from ex_vnpy.object import ExBarData
 from vnpy.trader.object import BarData
 from pandas.tseries.frequencies import to_offset
 
 import talipp.indicators as tainds
 from talipp.indicators import Indicator
-from talipp.ohlcv import OHLCVFactory, OHLCV
 import ex_vnpy.indicators as exinds
 from ex_vnpy.sensor.centrum_sensor import CentrumSensor
 
 
 logger = logging.getLogger("SourceManager")
-
 
 class SourceManager(object):
     """
@@ -28,15 +28,16 @@ class SourceManager(object):
     1. time series container of bar data
     2. calculating technical indicator value
     """
-    func_price_map = {'open': 'first', 'high': 'max', 'low': 'min', 'close': 'last',
-                      'volume': lambda x: x.sum(min_count=1), 'turnover': lambda x: x.sum(min_count=1)}
 
-    def __init__(self, bars: list[BarData] = [], ta: dict = {}, centrum: bool = False, min_size: int = 100):
+    def __init__(self, bars: list[ExBarData] = [], ta: dict = {}, centrum: bool = False, min_size: int = 100):
         """Constructor"""
         self.exchange: Exchange = None
         self.interval: Interval = None
         self.symbol: str = None
         self.gateway_name: str = None
+        # TODO: to delete
+        # self.func_price_map = {'open': 'first', 'high': 'max', 'low': 'min', 'close': 'last',
+        #               'volume': lambda x: x.sum(min_count=1), 'turnover': lambda x: x.sum(min_count=1)}
 
         self.data_df: DataFrame = None
         self.daily_df: DataFrame = None
@@ -89,15 +90,12 @@ class SourceManager(object):
         ha_df['ha_low'] = ha_df[['low', 'ha_open', 'ha_close']].min(axis=1)
         return ha_df
 
-    def init_data_df(self, bars: list[BarData]):
-        init_data = copy.deepcopy(bars)
-        for x in init_data:
-            x.datetime = x.datetime.isoformat()
-        self.data_df = pd.DataFrame(data=init_data, columns=['open_price', 'high_price', 'low_price', 'close_price', 'volume', 'turnover', 'open_interest', 'datetime'])
-        self.data_df.rename(
-            columns={'open_price': 'open', 'high_price': 'high', 'low_price': 'low', 'close_price': 'close'},
-            inplace=True)
-        # TODO: 增加Heikin Ashi蜡烛图信息
+    def init_data_df(self, bars: list[ExBarData]):
+        # auto make columns, according to ExBarData
+        init_data = [item.to_dict() for item in bars]
+        self.data_df = pd.DataFrame(data=init_data, columns=ExBarData.columns(exclude=['symbol_id', 'symbol', 'exchange', 'interval']))
+
+        # 增加Heikin Ashi蜡烛图信息
         self.init_heikin_ashi_candle_df(self.data_df)
 
         self.data_df.index = pd.DatetimeIndex(self.data_df['datetime'])
@@ -126,26 +124,25 @@ class SourceManager(object):
             if len(input_names) == 1:
                 input_values = source_df[input_names[0]].to_list()
             else:
-                data = source_df[input_names].to_dict("list")
-                input_values = OHLCVFactory.from_dict(data)
+                # data = source_df[input_names].to_dict("list")
+                # input_values = OHLCVFactory.from_dict(data)
+
+                data = source_df[input_names].to_dict("records")
+                input_values = ExBarData.from_dicts(data)
             try:
                 ind.initialize(input_values=input_values)
             except Exception as e:
                 logger.error(f"[SM] indicator initialize error! {e}")
                 traceback.print_exc()
 
-    def update_bar(self, bar: BarData) -> None:
+    def update_bar(self, bar: ExBarData) -> None:
         """
         Update new bar data into array manager.
         """
-        new_dict = bar.__dict__
         if len(self.data_df) == 0:
             self.init_data_df([bar])
         else:
-            new_dict['open'] = new_dict['open_price']
-            new_dict['high'] = new_dict['high_price']
-            new_dict['low'] = new_dict['low_price']
-            new_dict['close'] = new_dict['close_price']
+            new_dict = bar.to_dict()
 
             # add heikin ashi
             new_dict['ha_close'] = (new_dict['open'] + new_dict['high'] + new_dict['low'] + new_dict['close']) / 4
@@ -154,7 +151,9 @@ class SourceManager(object):
             new_dict['ha_high'] = max(new_dict['high'], new_dict['ha_open'], new_dict['ha_close'])
             new_dict['ha_low'] = min(new_dict['low'], new_dict['ha_open'], new_dict['ha_close'])
 
-            nt = pd.to_datetime(bar.datetime.isoformat())
+            # TODO: check all isoformat
+            # nt = pd.to_datetime(bar.datetime.isoformat())
+            nt = pd.to_datetime(bar.datetime)
             self.data_df.loc[nt, :] = new_dict
 
         self.update_weekly_df()
@@ -176,20 +175,44 @@ class SourceManager(object):
             source_df = self.get_dataframe(self.ind_interval[ind_name])
             input_names = self.ind_inputs[ind_name]
             new_bar = source_df[input_names].iloc[-1]
-            new_data = new_bar[input_names[0]] if len(input_names) == 1 else OHLCV(**(new_bar.to_dict()))
+
+            # use ExBarData instead of OHLCV
+            # new_data = new_bar[input_names[0]] if len(input_names) == 1 else OHLCV(**(new_bar.to_dict()))
+            new_data = new_bar[input_names[0]] if len(input_names) == 1 else ExBarData.from_dict(new_bar.to_dict())
 
             ind_len = len(ind.input_values)
             data_len = len(source_df)
             if data_len == ind_len:
-                ind.update_input_value(new_data)
+                ind.update(new_data)
             elif data_len == ind_len + 1:
-                ind.add_input_value(new_data)
+                ind.add(new_data)
             else:
                 logger.error("[ERROR] INDICATOR ERROR, length is not matched!")
                 raise Exception()
 
     def resample_to_week_data(self, df):
-        w_df = df.resample('W').agg(self.func_price_map).dropna()
+        agg_dict = {}
+        for column in df.columns:
+            if column in ['symbol', 'exchange', 'interval', 'symbol_id', 'datetime', 'stype']:
+                continue
+
+            col_type = df[column].dtype
+            # 根据数据类型决定聚合函数
+            if column.endswith('open'):
+                agg_dict[column] = 'first'
+            elif column.endswith('high'):
+                agg_dict[column] = 'max'
+            elif column.endswith('low'):
+                agg_dict[column] = 'min'
+            elif column.endswith('close'):
+                agg_dict[column] = 'last'
+            elif col_type == 'int64' or col_type == 'float64':
+                # 数值型列使用'sum'作为聚合函数，考虑min_count=1
+                agg_dict[column] = lambda x: x.sum(min_count=1)
+            else:
+                logger.warning(f"column not support resample: {column}")
+
+        w_df = df.resample('W').agg(agg_dict).dropna()
         w_df.index = w_df.index + to_offset("-2D")
         w_df['datetime'] = w_df.index
         return w_df
@@ -469,19 +492,33 @@ class SourceManager(object):
     def get_centrum_sensor(self, interval: Interval) -> CentrumSensor:
         return self.dc_sensor if interval == Interval.DAILY else self.wc_sensor
 
-    def get_indicator_values(self, ind_name):
+    def get_indicator_origin_values(self, ind_name):
         indicator = self.indicators[ind_name]
-        if len(indicator.output_values) <= 0:
+        if not has_valid_values(indicator):
             return None
 
-        if is_dataclass(indicator.output_values[0]):
-            outputs = indicator.to_lists()
+        if is_dataclass(indicator.get_output_value_type()):
+            outputs = composite_to_lists(indicator)
             for new_name, origin_name in self.ind_outputs[ind_name].items():
                 if new_name != origin_name:        # 名字存在映射
                     outputs[new_name] = outputs.pop(origin_name)
         else:
             new_name = self.ind_outputs[ind_name]
             outputs = {new_name: indicator.output_values}
+        return outputs
+
+    def get_indicator_values(self, ind_name):
+        """
+        过滤掉指标头部的None值
+        """
+        outputs = self.get_indicator_origin_values(ind_name)
+        if not outputs:
+            return None
+
+        for key in outputs.keys():
+            ind_value = outputs[key]
+            start = len(ind_value) - valid_values_length(ind_value)
+            outputs[key] = ind_value[start:]
         return outputs
 
     def get_indicator_value(self, ind_name, key):

@@ -1,6 +1,7 @@
 from typing import List, Any
+
+from talipp.indicator_util import has_valid_values
 from talipp.indicators.Indicator import Indicator
-from talipp.ohlcv import OHLCV
 
 
 class ChangePct(Indicator):
@@ -14,7 +15,7 @@ class ChangePct(Indicator):
         self.initialize(input_values)
 
     def _calculate_new_value(self) -> Any:
-        if len(self.input_values) < 2:
+        if not has_valid_values(self.input_values, 2):
             return 0
 
         current_input = self.input_values[-1]

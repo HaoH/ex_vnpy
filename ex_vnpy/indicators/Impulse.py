@@ -1,5 +1,6 @@
 from typing import List, Any
 
+from talipp.indicator_util import has_valid_values
 from talipp.indicators import MACD, EMA
 from talipp.indicators.Indicator import Indicator
 
@@ -26,7 +27,10 @@ class Impulse(Indicator):
         self.initialize(input_values, input_indicator)
 
     def _calculate_new_value(self) -> Any:
-        if len(self.macd) >= 2 and self.macd[-2].histogram is not None and len(self.ema) > 0:
+        if not has_valid_values(self.macd, 2) or not has_valid_values(self.ema, 1):
+            return None
+
+        if self.macd[-2].histogram is not None:
             his_trend = 0
             if self.macd[-1].histogram > self.macd[-2].histogram:
                 his_trend = 1

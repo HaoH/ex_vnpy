@@ -3,6 +3,8 @@ from enum import Enum, EnumMeta
 from typing import List, Any
 
 import numpy as np
+
+from talipp.indicator_util import has_valid_values
 from talipp.indicators.Indicator import Indicator
 from talipp.ohlcv import OHLCV
 import talib as ta
@@ -112,7 +114,7 @@ class PRI(Indicator):
             self.high = np.append(self.high, value.high)
             self.close = np.append(self.close, value.close)
             self.low = np.append(self.low, value.low)
-        super().add_input_value(value)
+        super().add(value)
 
     def remove_input_value(self) -> None:
         if len(self.open) > 0:
@@ -120,10 +122,10 @@ class PRI(Indicator):
             self.high = self.high[:-1]
             self.close = self.close[:-1]
             self.low = self.low[:-1]
-        super().remove_input_value()
+        super().remove()
 
     def _calculate_new_value(self) -> Any:
-        if len(self.input_values) < 13:
+        if not has_valid_values(self.input_values, 13):
             return None
 
         assert (len(self.high) == len(self.input_values))

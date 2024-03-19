@@ -2,7 +2,8 @@ from dataclasses import dataclass
 from datetime import datetime
 
 from vnpy.trader.constant import Exchange, Market
-from vnpy.trader.object import BaseData
+from vnpy.trader.object import BaseData, BarData
+
 
 @dataclass
 class BasicSymbolData(BaseData):
@@ -66,4 +67,56 @@ class BasicIndexData(BasicSymbolData):
     is_core_index: bool = False
 
 
-    # symbol_type = "INDX"
+@dataclass
+class ExBarData(BarData):
+    """
+    扩展BarData，加入资金流数据
+    """
+    order_count_buy_XL: int = 0
+    order_count_buy_L: int = 0
+    order_count_buy_M: int = 0
+    order_count_buy_S: int = 0
+    order_count_sell_XL: int = 0
+    order_count_sell_L: int = 0
+    order_count_sell_M: int = 0
+    order_count_sell_S: int = 0
+    order_volume_buy_XL: int = 0
+    order_volume_buy_L: int = 0
+    order_volume_buy_M: int = 0
+    order_volume_buy_S: int = 0
+    order_volume_sell_XL: int = 0
+    order_volume_sell_L: int = 0
+    order_volume_sell_M: int = 0
+    order_volume_sell_S: int = 0
+    volume_buy_XL: int = 0
+    volume_buy_L: int = 0
+    volume_buy_M: int = 0
+    volume_buy_S: int = 0
+    volume_sell_XL: int = 0
+    volume_sell_L: int = 0
+    volume_sell_M: int = 0
+    volume_sell_S: int = 0
+    turnover_buy_XL: float = 0
+    turnover_buy_L: float = 0
+    turnover_buy_M: float = 0
+    turnover_buy_S: float = 0
+    turnover_sell_XL: float = 0
+    turnover_sell_L: float = 0
+    turnover_sell_M: float = 0
+    turnover_sell_S: float = 0
+
+    @property
+    def open(self):
+        return self.open_price
+
+    @property
+    def high(self):
+        return self.high_price
+
+    @property
+    def low(self):
+        return self.low_price
+
+    @property
+    def close(self):
+        return self.close_price

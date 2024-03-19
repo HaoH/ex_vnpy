@@ -1,4 +1,6 @@
 from typing import List, Any
+
+from talipp.indicator_util import has_valid_values, valid_values_length
 from talipp.indicators.Indicator import Indicator
 from ex_vnpy.capital_data import CapitalData
 from ex_vnpy.indicators.CFNI import CFNI
@@ -17,8 +19,8 @@ class CFNIDays(Indicator):
         self.initialize(input_values)
 
     def _calculate_new_value(self) -> Any:
-        input_len = len(self.input_values)
-        if input_len <= 0:
+        input_len = valid_values_length(self.input_values)
+        if input_len < 1:
             return 0
         elif input_len < 2:
             return 1 if self.cfni[-1] > 0 else -1 if self.cfni[-1] < 0 else 0

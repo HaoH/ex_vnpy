@@ -1,6 +1,7 @@
 from typing import List, Any
 from dataclasses import dataclass
 
+from talipp.indicator_util import has_valid_values
 from talipp.indicators.Indicator import Indicator
 from talipp.indicators.ATR import ATR
 from talipp.ohlcv import OHLCV
@@ -20,7 +21,7 @@ class ASX(Indicator):
     Output: a list of ASXVal
     """
     def __init__(self, period_si: int, period_asx: int, input_values: List[OHLCV] = None):
-        super(ASX, self).__init__()
+        super(ASX, self).__init__(output_value_type=ASXVal)
 
         self.period_si = period_si
         self.period_asx = period_asx
@@ -59,7 +60,7 @@ class ASX(Indicator):
         self.initialize(input_values)
 
     def _calculate_new_value(self) -> Any:
-        if len(self.input_values) < 2:
+        if not has_valid_values(self.input_values, 2):
             return None
 
         current_input = self.input_values[-1]

@@ -1,4 +1,6 @@
 from typing import List, Any
+
+from talipp.indicator_util import has_valid_values
 from talipp.indicators.Indicator import Indicator
 from ex_vnpy.capital_data import CapitalData
 
@@ -16,7 +18,7 @@ class CFNI(Indicator):
         self.initialize(input_values)
 
     def _calculate_new_value(self) -> Any:
-        if len(self.input_values) <= 0:
+        if not has_valid_values(self.input_values, 1):
             return None
 
         nv = self.input_values[-1]
