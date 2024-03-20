@@ -11,7 +11,7 @@ class CFNISN(Indicator):
     统计主力资金最近N天净流入累计
     """
 
-    def __init__(self, days: int, dim: str, input_values: List[CapitalData] = None):
+    def __init__(self, dim: str, days: int, input_values: List[CapitalData] = None):
         super(CFNISN, self).__init__()
 
         self.days = days

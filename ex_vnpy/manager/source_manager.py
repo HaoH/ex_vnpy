@@ -1,4 +1,3 @@
-import copy
 import logging
 import traceback
 from dataclasses import is_dataclass
@@ -7,16 +6,16 @@ from typing import Any, Dict, List
 
 import pandas as pd
 from pandas import DataFrame, Series
-
-from talipp.indicator_util import has_valid_values, composite_to_lists, valid_values_length
-from vnpy.trader.constant import Interval, Exchange
-from ex_vnpy.object import ExBarData
-from vnpy.trader.object import BarData
 from pandas.tseries.frequencies import to_offset
+
+from vnpy.trader.constant import Interval, Exchange
 
 import talipp.indicators as tainds
 from talipp.indicators import Indicator
+from talipp.indicator_util import has_valid_values, composite_to_lists, valid_values_length
+
 import ex_vnpy.indicators as exinds
+from ex_vnpy.object import ExBarData
 from ex_vnpy.sensor.centrum_sensor import CentrumSensor
 
 
