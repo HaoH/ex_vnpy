@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from datetime import datetime
+import datetime as dt
 
 from vnpy.trader.constant import Exchange, Market
 from vnpy.trader.object import BaseData, BarData
@@ -36,8 +36,8 @@ class BasicStockData(BasicSymbolData):
     industry_code_zz: str
     industry_code: str
 
-    ex_date: datetime
-    update_dt: datetime
+    ex_date: dt.datetime
+    update_dt: dt.datetime
 
     index_sz50: bool = False
     index_hs300: bool = False
@@ -57,10 +57,10 @@ class BasicIndexData(BasicSymbolData):
     full_name: str
     volume: int
     turnover: int
-    update_dt: datetime
+    update_dt: dt.datetime
 
-    publish_date: datetime = None
-    exit_date: datetime = None
+    publish_date: dt.datetime = None
+    exit_date: dt.datetime = None
     has_price: bool = True
     has_weight: bool = True
     has_components: bool = True
@@ -120,3 +120,23 @@ class ExBarData(BarData):
     @property
     def close(self):
         return self.close_price
+
+@dataclass
+class SharesData(BaseData):
+    """
+    Candlestick bar data of a certain trading period.
+    """
+    symbol: str = ""
+    exchange: Exchange = Exchange.SSE
+    # date: dt.date = None
+    start_dt: dt.date = None
+    end_dt: dt.date = None
+    total: float = 0.0              # 总股本
+    circulation_a: float = 0.0      # 流通 A 股
+    non_circulation_a: float = 0.0  # 非流通 A 股
+    total_a: float = 0.0            # A 股总股本
+    free_circulation: float = 0.0   # 自由流通股本
+
+    def __post_init__(self) -> None:
+        """"""
+        self.vt_symbol: str = f"{self.symbol}.{self.exchange.value}"
