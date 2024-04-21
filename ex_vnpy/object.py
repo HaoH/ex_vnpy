@@ -104,6 +104,7 @@ class ExBarData(BarData):
     turnover_sell_L: float = 0
     turnover_sell_M: float = 0
     turnover_sell_S: float = 0
+    circulation_shares: float = 0
 
     @property
     def open(self):

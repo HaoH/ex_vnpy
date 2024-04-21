@@ -37,6 +37,7 @@ class CapitalData:
     turnover_sell_L: Optional[float]
     turnover_sell_M: Optional[float]
     turnover_sell_S: Optional[float]
+    circulation_shares: Optional[float]
 
 
 class CapitalDataFactory:
@@ -59,7 +60,7 @@ class CapitalDataFactory:
                           x[16], x[17], x[18], x[19],
                           x[20], x[21], x[22], x[23],
                           x[24], x[25], x[26], x[27],
-                          x[28], x[29], x[30], x[31]) for x in values]
+                          x[28], x[29], x[30], x[31], x[32]) for x in values]
 
     @staticmethod
     def from_matrix2(values: List[List[float]]) -> List[CapitalData]:
@@ -81,7 +82,7 @@ class CapitalDataFactory:
                                  values[16], values[17], values[18], values[19],
                                  values[20], values[21], values[22], values[23],
                                  values[24], values[25], values[26], values[27],
-                                 values[28], values[29], values[30], values[31]))))
+                                 values[28], values[29], values[30], values[31], values[32]))))
 
     @staticmethod
     def from_dict(values: Dict[str, List[float]]) -> List[CapitalData]:
@@ -124,5 +125,6 @@ class CapitalDataFactory:
             values['turnover_sell_XL'] if 'turnover_sell_XL' in values else [],
             values['turnover_sell_L'] if 'turnover_sell_L' in values else [],
             values['turnover_sell_M'] if 'turnover_sell_M' in values else [],
-            values['turnover_sell_S'] if 'turnover_sell_S' in values else []
+            values['turnover_sell_S'] if 'turnover_sell_S' in values else [],
+            values['circulation_shares'] if 'circulation_shares' in values else []
         ])

@@ -8,6 +8,7 @@ from .CFNI import CFNI as CFNI
 from .CFNIDays import CFNIDays as CFNIDays
 from .CFNIS import CFNIS as CFNIS
 from .CFNISN import CFNISN as CFNISN
+from .CFNIRatio import CFNIRatio as CFNIRatio
 
 __all__ = (
     "Impulse",
@@ -19,5 +20,6 @@ __all__ = (
     "CFNI",
     "CFNIDays",
     "CFNIS",
-    "CFNISN"
+    "CFNISN",
+    "CFNIRatio"
 )
