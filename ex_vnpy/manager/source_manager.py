@@ -65,6 +65,8 @@ class SourceManager(object):
             for name, ind in self.ta.items():
                 ind_name = name
                 params = ind["params"] if "params" in ind and (isinstance(ind["params"], tuple) or isinstance(ind["params"], list)) else tuple()
+                if "param_symbol" in ind and ind["param_symbol"]:
+                    params = (self.symbol,) + params
                 module_name = tainds if hasattr(tainds, ind["kind"]) else exinds
                 self.indicators[ind_name] = getattr(module_name, ind["kind"])(*params)
                 self.ind_inputs[ind_name] = ind["input_values"]
