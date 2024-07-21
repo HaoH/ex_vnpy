@@ -141,3 +141,34 @@ class SharesData(BaseData):
     def __post_init__(self) -> None:
         """"""
         self.vt_symbol: str = f"{self.symbol}.{self.exchange.value}"
+
+@dataclass
+class DailyStatData(BarData):
+
+    # 当天收盘价
+    change_pct: float = 0.0
+    open_chg_pct: float = 0.0
+    up_limit: float = 0.0
+    down_limit: float = 0.0
+    volume_ratio: float = 0.0
+    change_pct_5u: float = 0.0
+    change_pct_10u: float = 0.0
+    change_pct_22u: float = 0.0
+    cont_up_days: int = 0
+    cont_max_up_days: int = 0
+
+    # 主力连续净流入天数
+    capital_ni_days: int = 0
+    # 主力当日净流入成交量
+    capital_ni_volume: int = 0
+    # 主力当日净流入金额
+    capital_ni_turnover: int = 0
+    # 主力3日净流入成交量
+    capital_ni_volume_3u: int = 0
+    # 主力3日净流入金额
+    capital_ni_turnover_3u: int = 0
+    # 主力净流入占流通盘比例
+    capital_ni_ratio: float = 0
+
+    # 流通股数
+    circulation_shares: float = 0.0
