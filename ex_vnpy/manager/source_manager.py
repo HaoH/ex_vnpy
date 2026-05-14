@@ -110,6 +110,13 @@ class SourceManager:
         self.init_heikin_ashi_candle_df(self.data_df)
 
         self.data_df.index = pd.DatetimeIndex(self.data_df['datetime'])
+        # ========== 去重：按日期去重，保留第一条 ==========
+        if not self.data_df.index.is_unique:
+            logger.error(f"[bar数据重复]警告: 发现重复的日期索引，去重前: {len(self.data_df)} 行")
+            # keep='first' 保留第一条，keep='last' 保留最后一条
+            self.data_df = self.data_df[~self.data_df.index.duplicated(keep='first')]
+            logger.error(f"去重后: {len(self.data_df)} 行")
+
         self.daily_df = self.data_df  # 先不做tick到daily的聚合
 
         if self.exchange is None and len(bars) > 0:
