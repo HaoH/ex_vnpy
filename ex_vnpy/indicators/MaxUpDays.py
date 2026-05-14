@@ -1,4 +1,4 @@
-from typing import List, Any
+from typing import Any
 
 from talipp.indicator_util import has_valid_values
 from talipp.indicators.Indicator import Indicator
@@ -9,7 +9,7 @@ class MaxUpDays(Indicator):
     """
     统计近似连续涨停天数
     """
-    def __init__(self, input_values: List[float] = None):
+    def __init__(self, input_values: list[float] | None = None):
         super(MaxUpDays, self).__init__()
 
         self.break_days = []

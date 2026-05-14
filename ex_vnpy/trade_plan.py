@@ -3,8 +3,6 @@ import talib
 from dataclasses import dataclass, fields
 from datetime import datetime
 from enum import Enum
-from typing import List, Dict, Tuple
-
 from ex_vnpy.manager.source_manager import SourceManager
 from ex_vnpy.signal import SignalDetector, Signal
 from ex_vnpy.utility import has_large_drop, find_real_test_days, is_speed_low, has_long_shadow_up
@@ -51,7 +49,7 @@ class StoplossReason(Enum):
 @dataclass
 class StoplossRecord:
     stoploss_price: float = 0
-    change_date: datetime = None
+    change_date: datetime | None = None
     change_reason: StoplossReason = StoplossReason.Init
 
 
@@ -70,11 +68,11 @@ class TradePlanData:
 
     direction: Direction = Direction.LONG
     status: PlanStatus = PlanStatus.PLAN
-    plan_date: datetime = None
-    entry_trigger_date: datetime = None           # 入场触发日期
-    entry_date: datetime = None                   # 入场日期
-    stoploss_trigger_date: datetime = None        # 止损触发日期
-    stoploss_date: datetime = None                # 止损日期
+    plan_date: datetime | None = None
+    entry_trigger_date: datetime | None = None           # 入场触发日期
+    entry_date: datetime | None = None                   # 入场日期
+    stoploss_trigger_date: datetime | None = None        # 止损触发日期
+    stoploss_date: datetime | None = None                # 止损日期
 
     entry_trigger_price: float = 0
     entry_buy_price: float = 0
@@ -83,7 +81,7 @@ class TradePlanData:
     strength: float = 0
     stoploss_rate: float = 0
 
-    stoploss_records: List = None
+    stoploss_records: list[StoplossRecord] | None = None
 
 
 class TradePlan:
@@ -94,31 +92,31 @@ class TradePlan:
 
     direction: Direction = Direction.LONG
     status: PlanStatus = PlanStatus.PLAN
-    plan_date: datetime = None
-    entry_trigger_date: datetime = None           # 入场订单触发日期
-    entry_date: datetime = None                   # 入场日期
-    stoploss_trigger_date: datetime = None        # 止损订单触发日期
-    stoploss_date: datetime = None                # 止损日期
-    stoploss_price_date: datetime = None          # 止损价格更新的日期，用来控制止损价格，只允许同一周内下降，跨周不允许下降
+    plan_date: datetime | None = None
+    entry_trigger_date: datetime | None = None           # 入场订单触发日期
+    entry_date: datetime | None = None                   # 入场日期
+    stoploss_trigger_date: datetime | None = None        # 止损订单触发日期
+    stoploss_date: datetime | None = None                # 止损日期
+    stoploss_price_date: datetime | None = None          # 止损价格更新的日期，用来控制止损价格，只允许同一周内下降，跨周不允许下降
     entry_trigger_price: float = 0
     entry_buy_price: float = 0
     stoploss_price: float = 0
     volume: float = 0
     strength: float = 0
 
-    detectors: List[SignalDetector] = []
+    detectors: list[SignalDetector] = []
     stoploss_rate: float = 0.08
-    stoploss_ind: Dict = None
-    stoploss_settings: Dict = None
+    stoploss_ind: dict | None = None
+    stoploss_settings: dict | None = None
 
     entry_trigger_order_id: str = ""        # 入场触发的StopOrder订单id
     entry_order_id: str = ""                # 入场的LimitOrder订单id
     exit_trigger_order_id: str = ""         # 退场的StopOrder订单id
     exit_order_id: str = ""                 # 退场的LimitOrder订单id
-    stoploss_order: StopOrder = None
+    stoploss_order: StopOrder | None = None
 
     # 新增一种类型，止损数据，把止损价格变动原因也放进来
-    stoploss_records: List[StoplossRecord] = []
+    stoploss_records: list[StoplossRecord] = []
 
     price_tick = 0.01
 
@@ -131,14 +129,14 @@ class TradePlan:
 
         # self.stoploss_price = stoploss_price
         self.stoploss_price_date = plan_date
-        self.stoploss_order: StopOrder = None
+        self.stoploss_order: StopOrder | None = None
 
         self.volume = volume
         self.plan_date = plan_date
         self.strength = strength
 
         self.detectors = []
-        self.stoploss_records: List[StoplossRecord] = []
+        self.stoploss_records: list[StoplossRecord] = []
 
         for key, value in kwargs.items():
             if hasattr(self, key):
@@ -150,7 +148,7 @@ class TradePlan:
 
         self.logger = logging.getLogger("TradePlan")
 
-    def set_entry_trigger_order(self, order_ids: List[str]):
+    def set_entry_trigger_order(self, order_ids: list[str]):
         if len(order_ids) <= 0:
             return
 
@@ -185,7 +183,7 @@ class TradePlan:
     def set_stoploss_price(self, new_stoploss_price: float):
         self.stoploss_price = round_to(new_stoploss_price, self.price_tick)
 
-    def set_detectors(self, detectors: List[SignalDetector]):
+    def set_detectors(self, detectors: list[SignalDetector]):
         self.detectors = detectors
 
     @property
@@ -202,7 +200,7 @@ class TradePlan:
     def accept_drawback_price(self, high_price, base_price, factor) -> float:
         return base_price + (high_price - base_price) * factor
 
-    def init_stoploss_price(self, sm: SourceManager, signals: List[Signal]) -> float:
+    def init_stoploss_price(self, sm: SourceManager, signals: list[Signal]) -> float:
         sl_prices = [s.sl_price for s in signals]
         valid_sl_prices = [x for x in sl_prices if x is not None]
 
@@ -276,7 +274,7 @@ class TradePlan:
         self.stoploss_price_date = stoploss_price_date
         self.stoploss_records.append(StoplossRecord(stoploss_price, stoploss_price_date, reason))
 
-    def get_all_stoploss_prices(self, sm: SourceManager) -> Tuple[float, StoplossReason]:
+    def get_all_stoploss_prices(self, sm: SourceManager) -> tuple[float, StoplossReason]:
         # 根据指标的变化，调整止损位
         ind_change_price = 0
         ind_reason = StoplossReason.Impulse
@@ -470,7 +468,7 @@ class TradePlan:
     def init_from_trade_plan_data(cls, trade_plan_data: dict) -> 'TradePlan':
         return TradePlan(**trade_plan_data)
 
-    def get_goldencut_stoploss_price(self, sm: SourceManager, low_weeks: int) -> Tuple[float, StoplossReason]:
+    def get_goldencut_stoploss_price(self, sm: SourceManager, low_weeks: int) -> tuple[float, StoplossReason]:
         """
         # 明确当前关键止损位，确保不亏钱；随着股价变动，调整止损价格、仓位
         # 不断提高调整止损点位（止盈）
@@ -502,7 +500,7 @@ class TradePlan:
         #     stoploss_price = self.accept_drawback_price(last_month_high, last_month_low, 0.618)
         return stoploss_price, reason
 
-    def get_stoploss_price_impulse(self, sm: SourceManager, settings: dict) -> Tuple[float, StoplossReason]:
+    def get_stoploss_price_impulse(self, sm: SourceManager, settings: dict) -> tuple[float, StoplossReason]:
         # impulse 指标连续2周转红，第三周出场
         ind_setting = settings["impulse"]
         ind_values = sm.get_indicator_value(ind_setting["name"], ind_setting["signals"])
@@ -515,7 +513,7 @@ class TradePlan:
             return a_ind_change_price, a_ind_reason
         return 0, StoplossReason.Empty
 
-    def get_stoploss_price_ema(self, sm: SourceManager, settings: dict) -> Tuple[float, StoplossReason]:
+    def get_stoploss_price_ema(self, sm: SourceManager, settings: dict) -> tuple[float, StoplossReason]:
         # 价格低于ema10，则止损
         ind_setting = settings["ema"]
         ind_values = sm.get_indicator_value(ind_setting["name"], ind_setting["signals"])
@@ -525,7 +523,7 @@ class TradePlan:
             return a_ind_change_price, a_ind_reason
         return 0, StoplossReason.Empty
 
-    def get_stoploss_price_ema_v(self, sm: SourceManager, settings: dict) -> Tuple[float, StoplossReason]:
+    def get_stoploss_price_ema_v(self, sm: SourceManager, settings: dict) -> tuple[float, StoplossReason]:
         # 日线柱成交量3倍于最近3个月成交量加权平均，止损位放在该日线柱下方一个price_tick位置
         ind_setting = settings["ema_v"]
         ind_values = sm.get_indicator_value(ind_setting["name"], ind_setting["signals"])
@@ -537,7 +535,7 @@ class TradePlan:
                 return a_ind_change_price, a_ind_reason
         return 0, StoplossReason.Empty
 
-    def get_stoploss_price_large_up(self, sm: SourceManager, settings: dict) -> Tuple[float, StoplossReason]:
+    def get_stoploss_price_large_up(self, sm: SourceManager, settings: dict) -> tuple[float, StoplossReason]:
         # 日线柱出现3%波动，止损位放在该日线柱下方一个price_tick位置
         # TODO: 可以考虑换成ATR的9分位
         # ind_setting = settings["atr"]
@@ -554,7 +552,7 @@ class TradePlan:
 
         return 0, StoplossReason.Empty
 
-    def get_stoploss_price_entry_low_speed(self, sm: SourceManager, settings: dict) -> Tuple[float, StoplossReason]:
+    def get_stoploss_price_entry_low_speed(self, sm: SourceManager, settings: dict) -> tuple[float, StoplossReason]:
         """
         入场的前N天，根据macd hist、di+的变动进行止损
         """
@@ -592,7 +590,7 @@ class TradePlan:
 
         return 0, StoplossReason.Empty
 
-    def get_stoploss_price_large_up_atr(self, sm: SourceManager, settings: dict) -> Tuple[float, StoplossReason]:
+    def get_stoploss_price_large_up_atr(self, sm: SourceManager, settings: dict) -> tuple[float, StoplossReason]:
         # 入场企稳之后，出现较大幅度的上涨
         # test_days = self.stoploss_ind["entry_low_speed"]["test_days"][0]
         # if sm.daily_df.index[-1 * test_days] >= self.entry_date: # 已经经过了入场试炼
@@ -636,7 +634,7 @@ class TradePlan:
             # TODO: 考虑周线上涨幅度
         return a_ind_change_price, a_ind_reason
 
-    def get_stoploss_price_large_drop_atr(self, sm: SourceManager, settings: dict) -> Tuple[float, StoplossReason]:
+    def get_stoploss_price_large_drop_atr(self, sm: SourceManager, settings: dict) -> tuple[float, StoplossReason]:
         # 出现明显的下调时候，止损价提高到当日实体柱的位置
         # large_range策略不区分入场还是非入场
 
@@ -655,7 +653,7 @@ class TradePlan:
 
         return 0, StoplossReason.Empty
 
-    def get_stoploss_price_movement_low_speed(self, sm: SourceManager, settings: dict) -> Tuple[float, StoplossReason]:
+    def get_stoploss_price_movement_low_speed(self, sm: SourceManager, settings: dict) -> tuple[float, StoplossReason]:
         bar = sm.latest_daily_bar   # 当日
         last_bar = sm.prior_daily_bar      # 昨日
 
@@ -671,7 +669,7 @@ class TradePlan:
 
         return 0, StoplossReason.Empty
 
-    def get_stoploss_price_top_pivot(self, sm: SourceManager, settings: dict) -> Tuple[float, StoplossReason]:
+    def get_stoploss_price_top_pivot(self, sm: SourceManager, settings: dict) -> tuple[float, StoplossReason]:
         bar = sm.latest_daily_bar   # 当日
         last_bar = sm.prior_daily_bar      # 昨日
 
@@ -693,7 +691,7 @@ class TradePlan:
 
         return 0, StoplossReason.Empty
 
-    def get_stoploss_price_ha_low(self, sm: SourceManager, settings: dict) -> Tuple[float, StoplossReason]:
+    def get_stoploss_price_ha_low(self, sm: SourceManager, settings: dict) -> tuple[float, StoplossReason]:
         bar = sm.latest_daily_bar   # 当日
         last_bar = sm.prior_daily_bar      # 昨日
 

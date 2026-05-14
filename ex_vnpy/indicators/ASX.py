@@ -1,4 +1,4 @@
-from typing import List, Any
+from typing import Any
 from dataclasses import dataclass
 
 from talipp.indicator_util import has_valid_values
@@ -20,7 +20,7 @@ class ASX(Indicator):
 
     Output: a list of ASXVal
     """
-    def __init__(self, period_si: int, period_asx: int, input_values: List[OHLCV] = None):
+    def __init__(self, period_si: int, period_asx: int, input_values: list[OHLCV] | None = None):
         super(ASX, self).__init__(output_value_type=ASXVal)
 
         self.period_si = period_si

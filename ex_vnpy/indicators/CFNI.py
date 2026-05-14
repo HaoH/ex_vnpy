@@ -1,4 +1,4 @@
-from typing import List, Any
+from typing import Any
 
 from talipp.indicator_util import has_valid_values
 from talipp.indicators.Indicator import Indicator
@@ -11,7 +11,7 @@ class CFNI(Indicator):
     对资金净流入进行汇总
     """
 
-    def __init__(self, dim: str, input_values: List[CapitalData] = None):
+    def __init__(self, dim: str, input_values: list[CapitalData] | None = None):
         super().__init__()
 
         self.dim = dim

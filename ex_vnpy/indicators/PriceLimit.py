@@ -1,4 +1,4 @@
-from typing import List, Any
+from typing import Any
 
 from talipp.indicator_util import has_valid_values
 from talipp.indicators.Indicator import Indicator
@@ -9,7 +9,7 @@ class PriceLimit(Indicator):
     """
     计算每天的价格涨跌停价格Up Limit, Down Limit
     """
-    def __init__(self, symbol: str, input_values: List[float] = None):
+    def __init__(self, symbol: str, input_values: list[float] | None = None):
         super(PriceLimit, self).__init__()
         # 规则
         # 1） 主板、中小板，涨跌幅10%

@@ -1,4 +1,4 @@
-from typing import List, Any
+from typing import Any
 
 from talipp.indicator_util import has_valid_values, valid_values_length
 from talipp.indicators.Indicator import Indicator
@@ -10,7 +10,7 @@ class CFNIDays(Indicator):
     """
     统计主力资金连续净流入天数
     """
-    def __init__(self, dim: str, input_values: List[CapitalData] = None):
+    def __init__(self, dim: str, input_values: list[CapitalData] | None = None):
         super(CFNIDays, self).__init__()
 
         self.cfni = CFNI(dim)

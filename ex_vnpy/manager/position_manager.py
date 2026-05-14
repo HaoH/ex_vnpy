@@ -1,7 +1,5 @@
 import logging
 from math import floor
-from typing import List, Dict
-
 from ex_vnpy.signal import Signal
 from ex_vnpy.trade_plan import TradePlan
 from ex_vnpy.manager.source_manager import SourceManager
@@ -12,7 +10,7 @@ import numpy as np
 
 logger = logging.getLogger("PositionManager")
 
-class PositionInfo(object):
+class PositionInfo:
     """
     当前的仓位信息
     """
@@ -25,7 +23,7 @@ class PositionInfo(object):
     stoploss_order: StopOrder
 
 
-class PositionManager(object):
+class PositionManager:
 
     unit_size: int = 100         # 每一手的仓位
     commission_rate: float = 0.0002
@@ -38,10 +36,19 @@ class PositionManager(object):
     total_volume: float = 0
     cost_price: float = 0       # 成本价
     last_price: float = 0       # 最后入场价
-    stoploss_ind: Dict = None   # 止损指标
-    stoploss_settings: Dict = None   # 止损指标
+    stoploss_ind: dict | None = None   # 止损指标
+    stoploss_settings: dict | None = None   # 止损指标
 
-    def __init__(self, stoploss_rate=0.08, fix_capital=100000, price_tick: float = 0.01, unit_size: int = 100, commission_rate: float = 0.0002, slippage: float = 0.005, stoploss_ind: Dict = None):
+    def __init__(
+        self,
+        stoploss_rate: float = 0.08,
+        fix_capital: float = 100000,
+        price_tick: float = 0.01,
+        unit_size: int = 100,
+        commission_rate: float = 0.0002,
+        slippage: float = 0.005,
+        stoploss_ind: dict | None = None,
+    ):
         self.stoploss_rate = stoploss_rate
         self.update_settings(fix_capital, price_tick, unit_size, commission_rate, slippage)
 
@@ -120,7 +127,14 @@ class PositionManager(object):
     def do_stop_loss(self):
         return self.stoploss_rate > 0
 
-    def make_trade_plan(self, sm: SourceManager, signals: List[Signal], total_signal_strength: float, full_strength: float, stoploss_rate: float):
+    def make_trade_plan(
+        self,
+        sm: SourceManager,
+        signals: list[Signal],
+        total_signal_strength: float,
+        full_strength: float,
+        stoploss_rate: float,
+    ):
         # 触发价格、入场价格取信号的均值，确保综合了两种信号的影响
         # TODO: 都取均值，效果比较均衡； trigger取low，buy取max，效果就会比较极端，或者是两者之长，或者是两者之短
         trigger_prices = [s.trigger_price for s in signals]

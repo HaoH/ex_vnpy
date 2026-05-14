@@ -6,9 +6,17 @@ from pandas import DataFrame, Series
 logger = logging.getLogger("StrendSensor")
 
 
-class SupertrendSensor(object):
+class SupertrendSensor:
 
-    def __init__(self, trend_type, valid_bars, trend_source, atr_factor_up, atr_factor_down, setting=None):
+    def __init__(
+        self,
+        trend_type,
+        valid_bars,
+        trend_source,
+        atr_factor_up,
+        atr_factor_down,
+        setting: dict | None = None,
+    ) -> None:
         self.name = "Supertrend"
         self.trend_type = trend_type
         self.valid_bars = valid_bars
@@ -16,7 +24,7 @@ class SupertrendSensor(object):
         self.atr_factor_up = atr_factor_up
         self.atr_factor_down = atr_factor_down
         # super trend 相关数据
-        self.supertrend_df: DataFrame = None
+        self.supertrend_df: DataFrame | None = None
         self.inited: bool = False
 
     def init_sensor(self, source_df, ind_values):

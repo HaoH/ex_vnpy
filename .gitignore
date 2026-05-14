@@ -1,3 +1,7 @@
 build
 dist
 ex_vnpy.egg-info
+.venv
+__pycache__
+*.pyc
+.python-version.bak

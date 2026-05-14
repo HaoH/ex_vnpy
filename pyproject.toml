@@ -1,0 +1,58 @@
+[project]
+name = "ex-vnpy"
+dynamic = ["version"]
+description = "Extensions and strategy utilities for VeighNa (vnpy)."
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "Hao Hu", email = "haohu.th@gmail.com" }]
+keywords = ["quant", "quantitative", "investment", "trading", "algotrading", "vnpy"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Topic :: Office/Business :: Financial :: Investment",
+    "Natural Language :: Chinese (Simplified)",
+]
+requires-python = ">=3.13"
+dependencies = [
+    "vnpy>=4.0.0",
+    "vnpy_ctastrategy>=1.4.1",
+    "talipp>=2.7.0",
+    "pandas>=2.2.0",
+    "numpy>=2.2.0",
+    "ta-lib>=0.6.4",
+    "PySide6>=6.8.0",
+]
+
+[project.urls]
+Homepage = "https://www.huhao09.com"
+
+[build-system]
+requires = ["hatchling>=1.27.0"]
+build-backend = "hatchling.build"
+
+[tool.hatch.version]
+path = "ex_vnpy/__init__.py"
+pattern = "__version__ = ['\"](?P<version>[^'\"]+)['\"]"
+
+[tool.hatch.build.targets.wheel]
+packages = ["ex_vnpy"]
+
+[dependency-groups]
+dev = ["ruff>=0.8.0"]
+
+[tool.ruff]
+target-version = "py313"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "W"]
+ignore = ["E501"]
+
+[tool.uv]
+required-environments = [
+    "sys_platform == 'darwin' and platform_machine == 'x86_64'"
+]

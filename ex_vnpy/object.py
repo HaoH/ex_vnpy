@@ -15,11 +15,11 @@ class BasicSymbolData(BaseData):
     type: str
     status: str
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """"""
-        if type(self.exchange) == str:
+        if isinstance(self.exchange, str):
             self.exchange = Exchange(self.exchange)
-        if type(self.market) == str:
+        if isinstance(self.market, str):
             self.market = Market(self.market)
         self.vt_symbol = f"{self.symbol}.{self.exchange.value}"
 
@@ -59,8 +59,8 @@ class BasicIndexData(BasicSymbolData):
     turnover: int
     update_dt: dt.datetime
 
-    publish_date: dt.datetime = None
-    exit_date: dt.datetime = None
+    publish_date: dt.datetime | None = None
+    exit_date: dt.datetime | None = None
     has_price: bool = True
     has_weight: bool = True
     has_components: bool = True
@@ -130,8 +130,8 @@ class SharesData(BaseData):
     symbol: str = ""
     exchange: Exchange = Exchange.SSE
     # date: dt.date = None
-    start_dt: dt.date = None
-    end_dt: dt.date = None
+    start_dt: dt.date | None = None
+    end_dt: dt.date | None = None
     total: float = 0.0              # 总股本
     circulation_a: float = 0.0      # 流通 A 股
     non_circulation_a: float = 0.0  # 非流通 A 股

@@ -1,48 +1,47 @@
 from dataclasses import dataclass
 from itertools import zip_longest
-from typing import Optional, List, Dict
 
 
 @dataclass
 class CapitalData:
-    order_count_buy_XL: Optional[int]
-    order_count_buy_L: Optional[int]
-    order_count_buy_M: Optional[int]
-    order_count_buy_S: Optional[int]
-    order_count_sell_XL: Optional[int]
-    order_count_sell_L: Optional[int]
-    order_count_sell_M: Optional[int]
-    order_count_sell_S: Optional[int]
-    order_volume_buy_XL: Optional[int]
-    order_volume_buy_L: Optional[int]
-    order_volume_buy_M: Optional[int]
-    order_volume_buy_S: Optional[int]
-    order_volume_sell_XL: Optional[int]
-    order_volume_sell_L: Optional[int]
-    order_volume_sell_M: Optional[int]
-    order_volume_sell_S: Optional[int]
-    volume_buy_XL: Optional[int]
-    volume_buy_L: Optional[int]
-    volume_buy_M: Optional[int]
-    volume_buy_S: Optional[int]
-    volume_sell_XL: Optional[int]
-    volume_sell_L: Optional[int]
-    volume_sell_M: Optional[int]
-    volume_sell_S: Optional[int]
-    turnover_buy_XL: Optional[float]
-    turnover_buy_L: Optional[float]
-    turnover_buy_M: Optional[float]
-    turnover_buy_S: Optional[float]
-    turnover_sell_XL: Optional[float]
-    turnover_sell_L: Optional[float]
-    turnover_sell_M: Optional[float]
-    turnover_sell_S: Optional[float]
-    circulation_shares: Optional[float]
+    order_count_buy_XL: int | None
+    order_count_buy_L: int | None
+    order_count_buy_M: int | None
+    order_count_buy_S: int | None
+    order_count_sell_XL: int | None
+    order_count_sell_L: int | None
+    order_count_sell_M: int | None
+    order_count_sell_S: int | None
+    order_volume_buy_XL: int | None
+    order_volume_buy_L: int | None
+    order_volume_buy_M: int | None
+    order_volume_buy_S: int | None
+    order_volume_sell_XL: int | None
+    order_volume_sell_L: int | None
+    order_volume_sell_M: int | None
+    order_volume_sell_S: int | None
+    volume_buy_XL: int | None
+    volume_buy_L: int | None
+    volume_buy_M: int | None
+    volume_buy_S: int | None
+    volume_sell_XL: int | None
+    volume_sell_L: int | None
+    volume_sell_M: int | None
+    volume_sell_S: int | None
+    turnover_buy_XL: float | None
+    turnover_buy_L: float | None
+    turnover_buy_M: float | None
+    turnover_buy_S: float | None
+    turnover_sell_XL: float | None
+    turnover_sell_L: float | None
+    turnover_sell_M: float | None
+    turnover_sell_S: float | None
+    circulation_shares: float | None
 
 
 class CapitalDataFactory:
     @staticmethod
-    def from_matrix(values: List[List]) -> List[CapitalData]:
+    def from_matrix(values: list[list]) -> list[CapitalData]:
         """
         Converts lists representing CapitalData values into lists of CapitalData objects. Expected dimension of input CapitalData list
         is 4 (without volume and timestamp), 5 (with volume and without timestamp) or 6 (with volume and timestamp).
@@ -63,7 +62,7 @@ class CapitalDataFactory:
                           x[28], x[29], x[30], x[31], x[32]) for x in values]
 
     @staticmethod
-    def from_matrix2(values: List[List[float]]) -> List[CapitalData]:
+    def from_matrix2(values: list[list[float]]) -> list[CapitalData]:
         """
         Converts lists representing O, H, L, C, V and T(ime) values into lists of CapitalData objects.
 
@@ -85,7 +84,7 @@ class CapitalDataFactory:
                                  values[28], values[29], values[30], values[31], values[32]))))
 
     @staticmethod
-    def from_dict(values: Dict[str, List[float]]) -> List[CapitalData]:
+    def from_dict(values: dict[str, list[float]]) -> list[CapitalData]:
         """
         Converts a dict with keys 'open', 'high', 'low', 'close', 'volume' and 'time' where each key
         contains a list of simple values into a list of CapitalData objects. If some key is missing, corresponding values

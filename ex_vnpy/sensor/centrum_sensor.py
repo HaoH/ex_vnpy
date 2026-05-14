@@ -1,6 +1,6 @@
 import logging
 from datetime import datetime, timedelta
-from typing import Any, Dict
+from typing import Any
 
 import numpy as np
 from pandas import DataFrame, Series
@@ -9,7 +9,7 @@ from vnpy.trader.constant import Interval
 logger = logging.getLogger("CentrumDetector")
 
 
-class CentrumSensor(object):
+class CentrumSensor:
     """
     缠论中枢探测
     LastPivot(L)： 最后一个正式的pivot，由CandidatePivot转正而来
@@ -26,9 +26,14 @@ class CentrumSensor(object):
 
     """
 
-    def __init__(self, valid_bars: int = 5, enable_contain: bool = True, ptype: str = 'HL', setting=None):
-        super().__init__()
-        self.name = 'Centrum'
+    def __init__(
+        self,
+        valid_bars: int = 5,
+        enable_contain: bool = True,
+        ptype: str = "HL",
+        setting: dict | None = None,
+    ) -> None:
+        self.name = "Centrum"
         self.valid_bars: int = valid_bars  # 分型有效间距，笔
         self.enable_contain: bool = enable_contain    # contain处理是否有效
 
@@ -63,14 +68,14 @@ class CentrumSensor(object):
         # 3/-3 表示历史的candidate pivot 顶底分型
         # 4/-4 表示backup pivot 顶底分型
         # 5/-5 表示ignore pivot 顶底分型
-        self.pivot_df: DataFrame = None
+        self.pivot_df: DataFrame | None = None
 
         # 指定当前的分型类型，HL: 高点低点分型，OC: 开盘收盘分型
         self.ptype = ptype
         self.inited: bool = False
 
-        self.source_df: DataFrame = None
-        self.backup_point: Dict = {}        # 用来备份当前的所有状态
+        self.source_df: DataFrame | None = None
+        self.backup_point: dict = {}        # 用来备份当前的所有状态
 
     def init_sensor(self, source_df: DataFrame) -> bool:
         if source_df is None or len(source_df) < 2:
@@ -308,7 +313,7 @@ class CentrumSensor(object):
             backup_point['last_pivot_index_value_s'] = self.pivot_df.loc[self.last_pivot_index]
         return backup_point
 
-    def restore_to_last_backup_point(self, backup_point: Dict):
+    def restore_to_last_backup_point(self, backup_point: dict) -> None:
         if self.last_candidate_pivot_index is not None and 'last_candidate_pivot_index' in backup_point.keys() and self.last_candidate_pivot_index != backup_point['last_candidate_pivot_index']:
             self.pivot_df.loc[self.last_candidate_pivot_index, 'pivot'] = 0
         if self.last_pivot_index is not None and 'last_pivot_index' in backup_point.keys() and self.last_pivot_index != backup_point['last_pivot_index']:

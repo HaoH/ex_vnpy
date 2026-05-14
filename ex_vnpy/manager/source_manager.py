@@ -2,7 +2,7 @@ import logging
 import traceback
 from dataclasses import is_dataclass
 from datetime import datetime, timedelta
-from typing import Any, Dict, List
+from typing import Any
 
 import pandas as pd
 from pandas import DataFrame, Series
@@ -21,29 +21,39 @@ from ex_vnpy.sensor.centrum_sensor import CentrumSensor
 
 logger = logging.getLogger("SourceManager")
 
-class SourceManager(object):
+class SourceManager:
     """
     For:
     1. time series container of bar data
     2. calculating technical indicator value
     """
 
-    def __init__(self, bars: list[ExBarData] = [], ta: dict = {}, centrum: bool = False, min_size: int = 100):
+    def __init__(
+        self,
+        bars: list[ExBarData] | None = None,
+        ta: dict | None = None,
+        centrum: bool = False,
+        min_size: int = 100,
+    ) -> None:
         """Constructor"""
-        self.exchange: Exchange = None
-        self.interval: Interval = None
-        self.symbol: str = None
-        self.gateway_name: str = None
+        if bars is None:
+            bars = []
+        if ta is None:
+            ta = {}
+        self.exchange: Exchange | None = None
+        self.interval: Interval | None = None
+        self.symbol: str | None = None
+        self.gateway_name: str | None = None
         # TODO: to delete
         # self.func_price_map = {'open': 'first', 'high': 'max', 'low': 'min', 'close': 'last',
         #               'volume': lambda x: x.sum(min_count=1), 'turnover': lambda x: x.sum(min_count=1)}
 
-        self.data_df: DataFrame = None
-        self.daily_df: DataFrame = None
-        self.weekly_df: DataFrame = None
+        self.data_df: DataFrame | None = None
+        self.daily_df: DataFrame | None = None
+        self.weekly_df: DataFrame | None = None
         self.inited: bool = False
         self.size: int = min_size
-        self.today: datetime = bars[-1].datetime if len(bars) > 0 else None
+        self.today: datetime | None = bars[-1].datetime if bars else None
         self.centrum = centrum
 
         self.init_data_df(bars)
@@ -55,10 +65,10 @@ class SourceManager(object):
         self.init_central_sensor()
 
         # 更新增量指标
-        self.indicators: Dict[str, Indicator] = {}
-        self.ind_inputs: Dict[str, List] = {}
-        self.ind_outputs: Dict[str, Any] = {}
-        self.ind_interval: Dict[str, Interval] = {}
+        self.indicators: dict[str, Indicator] = {}
+        self.ind_inputs: dict[str, list] = {}
+        self.ind_outputs: dict[str, Any] = {}
+        self.ind_interval: dict[str, Interval] = {}
 
         self.ta = ta
         if ta is not None and len(ta) > 0:

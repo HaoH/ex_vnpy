@@ -1,4 +1,4 @@
-from typing import List, Any
+from typing import Any
 
 from talipp.indicator_util import has_valid_values
 from talipp.indicators.Indicator import Indicator
@@ -9,7 +9,7 @@ class ContUp(Indicator):
     """
     统计连续上涨天数
     """
-    def __init__(self, input_values: List[float] = None):
+    def __init__(self, input_values: list[float] | None = None):
         super(ContUp, self).__init__()
         self.initialize(input_values)
 

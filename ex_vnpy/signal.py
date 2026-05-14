@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from abc import ABC
 from datetime import timedelta
 from enum import Enum
@@ -16,7 +18,7 @@ class DetectorType(Enum):
     Other = 'other'  # 其他辅助探测器
 
 
-class Signal(object):
+class Signal:
     """
     一次入场信号，包括了 触发价格、入场价格、止损价格、止盈价格
     """
@@ -26,7 +28,7 @@ class Signal(object):
     trigger_price: float = 0
     buy_price: float = 0
     sl_price: float = 0
-    detector: 'SignalDetector' = None
+    detector: SignalDetector | None = None
     is_predict: bool = False
 
     def __init__(self, weight, trigger_price, buy_price, sl_price, detector, is_predict: bool = False):
@@ -41,20 +43,20 @@ class Signal(object):
 class SignalDetector(ABC):
     """"""
     parameters = []
-    sd_type: DetectorType = None
+    sd_type: DetectorType | None = None
     weight: int = 1
     stop_loss_rate: float = 0.08
     active_state: bool = True
     inited: bool = False
 
-    def __init__(self, setting=None):
+    def __init__(self, setting: dict | None = None):
         """"""
         self.name = self.__class__.__name__
         self.sd_type = DetectorType.Other
         self.weight = 1
         self.update_setting(setting)
 
-    def update_setting(self, setting: dict):
+    def update_setting(self, setting: dict | None = None) -> None:
         """
         Update parameter with value in setting dict.
         """

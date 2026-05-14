@@ -1,4 +1,4 @@
-from typing import List, Any
+from typing import Any
 
 from talipp.indicator_util import has_valid_values
 from talipp.indicators.Indicator import Indicator
@@ -9,7 +9,7 @@ class OpenChgPct(Indicator):
     """
     统计时间段内的开盘价格变动 Open Change Percent
     """
-    def __init__(self, input_values: List[OHLCV] = None):
+    def __init__(self, input_values: list[OHLCV] | None = None):
         super(OpenChgPct, self).__init__()
         self.initialize(input_values)
 

@@ -1,7 +1,7 @@
 import logging
 import os
 from datetime import timedelta, datetime
-from typing import Any, Dict, List
+from typing import Any
 
 from ex_vnpy.manager.position_manager import PositionManager
 from ex_vnpy.manager.order_manager import OrderManager
@@ -15,10 +15,10 @@ from ex_vnpy.manager.source_manager import SourceManager
 
 
 class ExStrategyTemplate(CtaTemplate):
-    detectors: Dict[DetectorType, List[SignalDetector]] = {}
-    sm: SourceManager = None  # 数据管理器
-    om: OrderManager = None  # 订单管理器
-    pm: PositionManager = None  # 仓位控制器
+    detectors: dict[DetectorType, list[SignalDetector]] = {}
+    sm: SourceManager | None = None  # 数据管理器
+    om: OrderManager | None = None  # 订单管理器
+    pm: PositionManager | None = None  # 仓位控制器
     stoploss_rate: float = 0.08
 
     fix_capital = 100000  # 资金总量
@@ -34,8 +34,8 @@ class ExStrategyTemplate(CtaTemplate):
     stoploss_ind = {}
     stoploss_settings = {}
 
-    trade_plans: List[TradePlan] = []    # 当前交易计划
-    all_trade_plans: List[TradePlan] = []  # 所有交易计划
+    trade_plans: list[TradePlan] = []    # 当前交易计划
+    all_trade_plans: list[TradePlan] = []  # 所有交易计划
 
     def __init__(
             self,
@@ -71,7 +71,7 @@ class ExStrategyTemplate(CtaTemplate):
             self.detectors[detector.sd_type] = []
         self.detectors[detector.sd_type].append(detector)
 
-    def do_scan(self) -> List[Signal]:
+    def do_scan(self) -> list[Signal]:
         """
         根据当前的source manager的数据状态、策略配置，进行信号扫描
         :return: 返回所有[(有效信号,信号强度)] 列表
@@ -167,8 +167,16 @@ if not na(hold_days) and array.binary_search(hold_days, time) >= 0
         fp.write(template)
         fp.close()
 
-    def send_order(self, order_type: OrderType, direction: Direction, offset: Offset, volume: float,
-                   price: float = None, trigger_price: float = None, **kwargs) -> list:
+    def send_order(
+        self,
+        order_type: OrderType,
+        direction: Direction,
+        offset: Offset,
+        volume: float,
+        price: float | None = None,
+        trigger_price: float | None = None,
+        **kwargs,
+    ) -> list:
         """
         替代CtaTemplate的send_order
         :param is_protected: 保护性订单，表示必须执行，一旦价格暴涨暴跌，以市价成交
@@ -190,35 +198,35 @@ if not na(hold_days) and array.binary_search(hold_days, time) >= 0
             vt_orderid = self.om.send_limit_order(order_type, direction, offset, price, volume)
         return [vt_orderid]
 
-    def buy_high(self, trigger_price: float, volume: float, price: float = None, is_market: bool = True) -> list:
+    def buy_high(self, trigger_price: float, volume: float, price: float | None = None, is_market: bool = True) -> list:
         """
         定价止损订单，价格向上触发trigger_price，以price的价格下单买入
         """
         order_type = OrderType.STP if is_market else OrderType.STL
         return self.send_order(order_type, Direction.LONG, Offset.OPEN, volume, price, trigger_price)
 
-    def buy_low(self, trigger_price: float, volume: float, price: float = None, is_market: bool = True) -> list:
+    def buy_low(self, trigger_price: float, volume: float, price: float | None = None, is_market: bool = True) -> list:
         """
         定价止盈订单，价格向下触发trigger_price，以price的价格下单买入
         """
         order_type = OrderType.MIT if is_market else OrderType.LIT
         return self.send_order(order_type, Direction.LONG, Offset.OPEN, volume, price, trigger_price)
 
-    def sell_high(self, trigger_price: float, volume: float, price: float = None, is_market: bool = True) -> list:
+    def sell_high(self, trigger_price: float, volume: float, price: float | None = None, is_market: bool = True) -> list:
         """
         定价止盈订单，价格向上触发trigger_price，以price的价格下单卖出
         """
         order_type = OrderType.MIT if is_market else OrderType.LIT
         return self.send_order(order_type, Direction.SHORT, Offset.CLOSE, volume, price, trigger_price)
 
-    def sell_low(self, trigger_price: float, volume: float, price: float = None, is_market: bool = False) -> list:
+    def sell_low(self, trigger_price: float, volume: float, price: float | None = None, is_market: bool = False) -> list:
         """
         定价止损订单，价格向下触发trigger_price，以price的价格下单卖出
         """
         order_type = OrderType.STP if is_market else OrderType.STL
         return self.send_order(order_type, Direction.SHORT, Offset.CLOSE, volume, price, trigger_price)
 
-    def buy_market(self, volume: float, price: float = None) -> list:
+    def buy_market(self, volume: float, price: float | None = None) -> list:
         """
         市价购买
         :param volume:
@@ -256,7 +264,7 @@ Strategy
     def get_all_trade_plans(self):
         return self.all_trade_plans
 
-    def get_all_trade_plan_data(self) -> List[TradePlanData]:
+    def get_all_trade_plan_data(self) -> list[TradePlanData]:
         tps = []
         for tp in self.all_trade_plans:
             tpd = tp.extract_data()

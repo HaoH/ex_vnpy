@@ -1,17 +1,21 @@
+from __future__ import annotations
+
 import logging
 from datetime import datetime, timedelta
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from vnpy.trader.object import OrderData
 from vnpy.trader.constant import Direction, Offset, OrderType, Status
 from vnpy.trader.utility import round_to
-from vnpy_ctastrategy import StopOrder, CtaTemplate
-from vnpy_ctastrategy.base import STOPORDER_PREFIX, StopOrderStatus
+from vnpy_ctastrategy.base import STOPORDER_PREFIX, StopOrder, StopOrderStatus
+
+if TYPE_CHECKING:
+    from vnpy_ctastrategy.template import CtaTemplate
 
 logger = logging.getLogger("OrderManager")
 
 
-class OrderManager(object):
+class OrderManager:
 
     def __init__(self, strategy: CtaTemplate, engine: Any):
         """Constructor"""
@@ -110,13 +114,15 @@ class OrderManager(object):
                 order.status = Status.CANCELLED
                 self.strategy.on_order(order)
 
-    def send_stop_order(self,
-                        order_type: OrderType,
-                        direction: Direction,
-                        offset: Offset,
-                        volume: float,
-                        price: float = None,
-                        trigger_price: float = None) -> str:
+    def send_stop_order(
+        self,
+        order_type: OrderType,
+        direction: Direction,
+        offset: Offset,
+        volume: float,
+        price: float | None = None,
+        trigger_price: float | None = None,
+    ) -> str:
         """
 
         :param is_protected:

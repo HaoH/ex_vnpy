@@ -1,4 +1,4 @@
-from typing import List, Any
+from typing import Any
 
 from talipp.indicator_util import has_valid_values
 from talipp.indicators.Indicator import Indicator
@@ -8,7 +8,7 @@ class ChangePct(Indicator):
     """
     统计时间段内的Change Percent
     """
-    def __init__(self, period: int, is_plus: bool = True, input_values: List[float] = None):
+    def __init__(self, period: int, is_plus: bool = True, input_values: list[float] | None = None):
         super(ChangePct, self).__init__()
         self.period = period
         self.is_plus = is_plus      # 是否返回增量变化

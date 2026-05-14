@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from enum import Enum, EnumMeta
-from typing import List, Any
+from typing import Any
 
 import numpy as np
 
@@ -69,7 +69,7 @@ def pattern_value(pattern: Enum, total_value: int) -> int:
     return (total_value & (0x1001 << pattern.value)) >> pattern.value
 
 
-def pattern_values(pattern_meta: EnumMeta, total_value: int) -> List[Enum]:
+def pattern_values(pattern_meta: EnumMeta, total_value: int) -> list[Enum]:
     patterns = []
     for pattern in pattern_meta:
         if pattern_value(pattern, total_value) >= 1:
@@ -89,7 +89,7 @@ class PRI(Indicator):
 
     """
 
-    def __init__(self, pattern_type: List[str], input_values: List[OHLCV] = None):
+    def __init__(self, pattern_type: list[str], input_values: list[OHLCV] | None = None):
         super().__init__()
 
         self.pattern_type = pattern_type
