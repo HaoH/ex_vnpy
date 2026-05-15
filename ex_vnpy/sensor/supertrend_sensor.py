@@ -1,6 +1,7 @@
 import logging
 from datetime import datetime
 
+import numpy as np
 from pandas import DataFrame, Series
 
 logger = logging.getLogger("StrendSensor")
@@ -31,9 +32,11 @@ class SupertrendSensor:
         if source_df is None or ind_values is None:
             return
 
-        self.supertrend_df = DataFrame(columns=['atr', 'ph', 'pl', 'pp', 'center', 'up', 'down', 'trend', 'signal'],
-                                       index=source_df.index)
-        self.supertrend_df.fillna(0, inplace=True)
+        self.supertrend_df = DataFrame(
+            np.zeros((len(source_df.index), 9)),
+            columns=['atr', 'ph', 'pl', 'pp', 'center', 'up', 'down', 'trend', 'signal'],
+            index=source_df.index
+        )
         self.inited = True
 
         # 初始化指标取值
