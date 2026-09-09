@@ -68,6 +68,19 @@ class BasicIndexData(BasicSymbolData):
 
 
 @dataclass
+class BasicEtfData(BasicSymbolData):
+    """场内 ETF 基础信息。category 用于扫描过滤，对标指数的 is_core_index。"""
+    listed_date: dt.date | None
+    update_dt: dt.datetime
+
+    de_listed_date: dt.date | None = None
+    round_lot: int = 100
+    underlying: str = ""
+    category: str = "other"
+    is_core_etf: bool = False
+
+
+@dataclass
 class ExBarData(BarData):
     """
     扩展BarData，加入资金流数据
